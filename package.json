@@ -1,0 +1,25 @@
+{
+  "name": "vitalis",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @vitalis/api db:migrate",
+    "db:deploy": "pnpm --filter @vitalis/api db:deploy",
+    "db:seed": "pnpm --filter @vitalis/api db:seed",
+    "api:dev": "pnpm --filter @vitalis/api dev",
+    "web:dev": "pnpm --filter @vitalis/web dev",
+    "mobile:dev": "pnpm --filter @vitalis/mobile start"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

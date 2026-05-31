@@ -1,0 +1,122 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1419;
+  color: #e7ecf3;
+  line-height: 1.6;
+}
+
+a {
+  color: #5eead4;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4rem 0;
+}
+
+.badge {
+  display: inline-block;
+  background: #1a2332;
+  border: 1px solid #2d3a4f;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  color: #5eead4;
+  margin-bottom: 1.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.hero p {
+  font-size: 1.15rem;
+  color: #9aa8bc;
+  max-width: 560px;
+  margin-bottom: 2rem;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.btn-primary {
+  background: #14b8a6;
+  color: #0f1419;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid #2d3a4f;
+  color: #e7ecf3;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  padding: 4rem 0;
+}
+
+.card {
+  background: #1a2332;
+  border: 1px solid #2d3a4f;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.card h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.card p {
+  color: #9aa8bc;
+  font-size: 0.95rem;
+}
+
+.disclaimer {
+  border-top: 1px solid #2d3a4f;
+  padding: 2rem 0;
+  color: #6b7a90;
+  font-size: 0.85rem;
+}
+
+footer {
+  padding: 2rem 0 3rem;
+  color: #6b7a90;
+  font-size: 0.85rem;
+}

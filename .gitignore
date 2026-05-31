@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.turbo
+.env
+.env.local
+*.log
+ai/.venv
+ai/models/*.pkl
+ai/__pycache__
+api/prisma/*.db

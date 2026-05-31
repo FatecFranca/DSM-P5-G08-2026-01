@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vitalis-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: vitalis
+      POSTGRES_PASSWORD: vitalis
+      POSTGRES_DB: vitalis
+    volumes:
+      - vitalis_pg_data:/var/lib/postgresql/data
+
+volumes:
+  vitalis_pg_data:

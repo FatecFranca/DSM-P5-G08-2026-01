@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum Gender {
+  Male
+  Female
+}
+
+enum YesNo {
+  Yes
+  No
+}
+
+enum HealthProfile {
+  Em_Risco
+  Sedentario
+  Moderado
+  Saudavel_Ativo
+}
+
+enum RecommendationCategory {
+  DIET
+  ROUTINE
+  EXERCISE
+  HYDRATION
+  SLEEP
+}
+
+enum ReminderType {
+  WATER
+  MEAL
+  SLEEP
+  EXERCISE
+}
+
+enum ReminderFrequency {
+  DAILY
+  WEEKLY
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  assessments       HealthAssessment[]
+  classifications   HealthClassification[]
+  recommendations   UserRecommendation[]
+  reminders         Reminder[]
+  gamification      GamificationProfile?
+  refreshTokens     RefreshToken[]
+  reminderCompletions ReminderCompletion[]
+  userAchievements  UserAchievement[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model HealthAssessment {
+  id                       String   @id @default(uuid())
+  userId                   String   @map("user_id")
+  age                      Int
+  gender                   Gender
+  heightCm                 Float    @map("height_cm")
+  weightKg                 Float    @map("weight_kg")
+  bmi                      Float
+  dailySteps               Int      @map("daily_steps")
+  caloriesIntake           Int      @map("calories_intake")
+  hoursOfSleep             Float    @map("hours_of_sleep")
+  heartRate                Int?     @map("heart_rate")
+  bloodPressureSystolic    Int?     @map("blood_pressure_systolic")
+  bloodPressureDiastolic   Int?     @map("blood_pressure_diastolic")
+  exerciseHoursPerWeek     Float    @map("exercise_hours_per_week")
+  smoker                   YesNo
+  alcoholPerWeek           Int      @map("alcohol_per_week")
+  diabetic                 YesNo
+  heartDisease             YesNo    @map("heart_disease")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classification HealthClassification?
+
+  @@index([userId, createdAt])
+  @@map("health_assessments")
+}
+
+model HealthClassification {
+  id             String        @id @default(uuid())
+  userId         String        @map("user_id")
+  assessmentId   String        @unique @map("assessment_id")
+  profile        HealthProfile
+  profileScore   Int           @map("profile_score")
+  clusterId      Int           @map("cluster_id")
+  clusterLabel   String        @map("cluster_label")
+  explanation    Json
+  modelVersion   String        @default("rules-v1") @map("model_version")
+  confidence     Float?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessment HealthAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([clusterId])
+  @@map("health_classifications")
+}
+
+model RecommendationTemplate {
+  id          String                 @id @default(uuid())
+  profile     HealthProfile
+  category    RecommendationCategory
+  title       String
+  description String
+  priority    Int                    @default(1)
+  isActive    Boolean                @default(true) @map("is_active")
+
+  userRecommendations UserRecommendation[]
+
+  @@index([profile, category])
+  @@map("recommendation_templates")
+}
+
+model UserRecommendation {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  templateId String   @map("template_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template RecommendationTemplate @relation(fields: [templateId], references: [id])
+
+  @@unique([userId, templateId])
+  @@map("user_recommendations")
+}
+
+model Reminder {
+  id        String            @id @default(uuid())
+  userId    String            @map("user_id")
+  type      ReminderType
+  title     String
+  message   String?
+  timeOfDay String            @map("time_of_day")
+  frequency ReminderFrequency @default(DAILY)
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completions ReminderCompletion[]
+
+  @@index([userId, isActive])
+  @@map("reminders")
+}
+
+model ReminderCompletion {
+  id          String   @id @default(uuid())
+  reminderId  String   @map("reminder_id")
+  userId      String   @map("user_id")
+  completedAt DateTime @default(now()) @map("completed_at")
+  completedOn String   @map("completed_on")
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reminderId, completedOn])
+  @@index([userId, completedOn])
+  @@map("reminder_completions")
+}
+
+model GamificationProfile {
+  id            String    @id @default(uuid())
+  userId        String    @unique @map("user_id")
+  points        Int       @default(0)
+  level         Int       @default(1)
+  currentStreak Int       @default(0) @map("current_streak")
+  longestStreak Int       @default(0) @map("longest_streak")
+  badges        Json      @default("[]")
+  lastActiveAt  DateTime? @map("last_active_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gamification_profiles")
+}
+
+model Achievement {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  title        String
+  description  String
+  pointsReward Int      @default(0) @map("points_reward")
+  icon         String?
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  achievementId String   @map("achievement_id")
+  unlockedAt    DateTime @default(now()) @map("unlocked_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+model ClusterDefinition {
+  id          Int    @id
+  label       String
+  description String
+
+  @@map("cluster_definitions")
+}
