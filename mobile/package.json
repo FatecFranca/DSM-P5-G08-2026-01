@@ -2,9 +2,10 @@
   "name": "@vitalis/mobile",
   "version": "0.0.1",
   "private": true,
-  "description": "App React Native - placeholder ate inicializar Expo",
+  "description": "App Flutter do Vitalis",
   "scripts": {
-    "start": "echo \"Execute: npx create-expo-app@latest . --template blank-typescript\"",
-    "lint": "echo \"Mobile ainda nao inicializado\""
+    "start": "flutter run",
+    "lint": "flutter analyze",
+    "test": "flutter test"
   }
 }

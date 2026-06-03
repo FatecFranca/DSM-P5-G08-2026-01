@@ -1,32 +1,42 @@
-# Mobile (React Native)
+# Mobile (Flutter)
 
-App principal do Vitalis. Fluxo: cadastro, questionario, resultado do perfil, recomendacoes, lembretes e gamificacao.
+App principal do Vitalis em Flutter.
 
-## Setup (proxima etapa)
+## Rodar
 
 ```bash
 cd mobile
-npx create-expo-app@latest . --template blank-typescript
-pnpm install
+flutter pub get
+flutter run
 ```
 
-## Config
+Tambem funciona pelo script do monorepo:
 
-Crie `mobile/.env`:
-
-```
-EXPO_PUBLIC_API_URL=http://localhost:3333
+```bash
+pnpm mobile:dev
 ```
 
-## Telas planejadas
+## URL da API
 
-- Login / Cadastro
-- Onboarding (questionario de habitos)
-- Resultado (perfil + score + cluster)
-- Recomendacoes (dieta, rotina, exercicio)
-- Lembretes (agua, refeicao, sono)
-- Gamificacao (pontos, nivel, streak)
+O app permite editar a URL na tela de login. Valores comuns:
 
-## API
+```text
+Windows/macOS/Linux ou Flutter web: http://localhost:3333
+Emulador Android: http://10.0.2.2:3333
+Aparelho fisico: http://IP_DA_SUA_MAQUINA:3333
+```
 
-Consome `api/` via REST. Schema do formulario em `GET /health/questionnaire`.
+Tambem da para passar a URL no build/run:
+
+```bash
+flutter run --dart-define=API_URL=http://10.0.2.2:3333
+```
+
+## Fluxos implementados
+
+- Login e cadastro
+- Dashboard
+- Avaliacao de saude
+- Recomendacoes, plano alimentar e rotina semanal
+- Lembretes do dia com conclusao
+- Gamificacao e conquistas
