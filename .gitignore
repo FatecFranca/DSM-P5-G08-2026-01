@@ -7,6 +7,7 @@ dist
 *.log
 ai/.venv
 MANUAL PI - DSM 2023-2-1.pdf
+docs/
 # Modelos .pkl devem ser commitados para deploy Azure (gerados por train.py)
 # ai/models/*.pkl
 ai/__pycache__
