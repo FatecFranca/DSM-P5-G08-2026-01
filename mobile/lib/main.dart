@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -15,10 +17,80 @@ Future<void> main() async {
   runApp(const VitalisApp());
 }
 
+final appThemeMode = ValueNotifier<ThemeMode>(ThemeMode.light);
+
 const defaultApiUrl = String.fromEnvironment(
   'API_URL',
   defaultValue: 'http://localhost:3333',
 );
+
+const teal600 = Color(0xFF0D9488);
+const teal400 = Color(0xFF2DD4BF);
+const lightBg = Color(0xFFF4F7FA);
+const lightSurface = Color(0xFFFFFFFF);
+const lightLine = Color(0xFFE6ECF1);
+const lightInk = Color(0xFF0E1A24);
+const lightMuted = Color(0xFF5B6B79);
+const darkBg = Color(0xFF0C1116);
+const darkSurface = Color(0xFF151D25);
+const darkLine = Color(0xFF243039);
+const darkInk = Color(0xFFECF2F6);
+const darkMuted = Color(0xFF9DB0BE);
+
+ThemeData vitalisTheme(Brightness brightness) {
+  final isDark = brightness == Brightness.dark;
+  final scheme = ColorScheme.fromSeed(
+    brightness: brightness,
+    seedColor: isDark ? teal400 : teal600,
+    primary: isDark ? teal400 : teal600,
+    secondary: const Color(0xFFF59E0B),
+    tertiary: const Color(0xFF7C3AED),
+    surface: isDark ? darkSurface : lightSurface,
+    onSurface: isDark ? darkInk : lightInk,
+    outlineVariant: isDark ? darkLine : lightLine,
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    brightness: brightness,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: isDark ? darkBg : lightBg,
+    textTheme: GoogleFonts.plusJakartaSansTextTheme(
+      ThemeData(brightness: brightness).textTheme,
+    ).apply(
+      bodyColor: isDark ? darkInk : lightInk,
+      displayColor: isDark ? darkInk : lightInk,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: isDark ? const Color(0xFF101922) : Colors.white,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: isDark ? darkLine : lightLine),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.primary, width: 1.6),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+    cardTheme: CardThemeData(
+      color: isDark ? darkSurface : lightSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: (isDark ? darkSurface : const Color(0xFFEAF4F0)).withValues(alpha: 0.96),
+      indicatorColor: scheme.primary.withValues(alpha: 0.16),
+      labelTextStyle: WidgetStateProperty.all(GoogleFonts.plusJakartaSans(fontSize: 12)),
+    ),
+  );
+}
 
 class VitalisApp extends StatefulWidget {
   const VitalisApp({super.key});
@@ -45,28 +117,20 @@ class _VitalisAppState extends State<VitalisApp> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF147D64),
-        primary: const Color(0xFF147D64),
-        secondary: const Color(0xFFE0962D),
-        tertiary: const Color(0xFF4267AC),
-        surface: const Color(0xFFF7FAF8),
-      ),
-      scaffoldBackgroundColor: const Color(0xFFF7FAF8),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-      ),
-    );
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Vitalis',
-      theme: theme,
-      home: _ready
-          ? RootScreen(session: _session)
-          : const Scaffold(body: Center(child: CircularProgressIndicator())),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: appThemeMode,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Vitalis',
+          theme: vitalisTheme(Brightness.light),
+          darkTheme: vitalisTheme(Brightness.dark),
+          themeMode: mode,
+          home: _ready
+              ? RootScreen(session: _session)
+              : const Scaffold(body: Center(child: CircularProgressIndicator())),
+        );
+      },
     );
   }
 }
@@ -677,18 +741,20 @@ class AssessmentPage extends StatefulWidget {
 class _AssessmentPageState extends State<AssessmentPage> {
   final _form = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {
-    'age': TextEditingController(text: '30'),
-    'heightCm': TextEditingController(text: '170'),
-    'weightKg': TextEditingController(text: '75'),
-    'dailySteps': TextEditingController(text: '6000'),
-    'exerciseHoursPerWeek': TextEditingController(text: '3'),
-    'caloriesIntake': TextEditingController(text: '2200'),
-    'alcoholPerWeek': TextEditingController(text: '1'),
-    'hoursOfSleep': TextEditingController(text: '7'),
     'heartRate': TextEditingController(text: '80'),
     'bloodPressureSystolic': TextEditingController(),
     'bloodPressureDiastolic': TextEditingController(),
   };
+  int _step = 0;
+  int _age = 29;
+  double _heightCm = 165;
+  double _weightKg = 72;
+  int _dailySteps = 8000;
+  double _exerciseHoursPerWeek = 2;
+  int _caloriesIntake = 2100;
+  int _alcoholPerWeek = 3;
+  double _hoursOfSleep = 6;
+  int _heartRate = 72;
   String _gender = 'Male';
   String _smoker = 'No';
   String _diabetic = 'No';
@@ -708,21 +774,21 @@ class _AssessmentPageState extends State<AssessmentPage> {
     setState(() => _loading = true);
     try {
       final body = {
-        'age': _int('age'),
+        'age': _age,
         'gender': _gender,
-        'heightCm': _double('heightCm'),
-        'weightKg': _double('weightKg'),
-        'dailySteps': _int('dailySteps'),
-        'caloriesIntake': _int('caloriesIntake'),
-        'hoursOfSleep': _double('hoursOfSleep'),
-        if (_controllers['heartRate']!.text.trim().isNotEmpty) 'heartRate': _int('heartRate'),
+        'heightCm': _heightCm,
+        'weightKg': _weightKg,
+        'dailySteps': _dailySteps,
+        'caloriesIntake': _caloriesIntake,
+        'hoursOfSleep': _hoursOfSleep,
+        'heartRate': _heartRate,
         if (_controllers['bloodPressureSystolic']!.text.trim().isNotEmpty)
           'bloodPressureSystolic': _int('bloodPressureSystolic'),
         if (_controllers['bloodPressureDiastolic']!.text.trim().isNotEmpty)
           'bloodPressureDiastolic': _int('bloodPressureDiastolic'),
-        'exerciseHoursPerWeek': _double('exerciseHoursPerWeek'),
+        'exerciseHoursPerWeek': _exerciseHoursPerWeek,
         'smoker': _smoker,
-        'alcoholPerWeek': _int('alcoholPerWeek'),
+        'alcoholPerWeek': _alcoholPerWeek,
         'diabetic': _diabetic,
         'heartDisease': _heartDisease,
       };
@@ -738,64 +804,218 @@ class _AssessmentPageState extends State<AssessmentPage> {
   }
 
   int _int(String key) => int.parse(_controllers[key]!.text.replaceAll(',', '.'));
-  double _double(String key) => double.parse(_controllers[key]!.text.replaceAll(',', '.'));
+
+  void _nextStep() {
+    if (_step < 3) {
+      setState(() => _step += 1);
+    } else {
+      _submit();
+    }
+  }
+
+  void _previousStep() {
+    if (_step > 0) setState(() => _step -= 1);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Form(
       key: _form,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
-          const SectionTitle('Dados pessoais'),
-          Field(controller: _controllers['age']!, label: 'Idade', min: 18, max: 120),
-          ChoiceField(
-            label: 'Sexo',
-            value: _gender,
-            options: const {'Male': 'Masculino', 'Female': 'Feminino'},
-            onChanged: (value) => setState(() => _gender = value),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Voltar',
+                  onPressed: _step == 0 ? null : _previousStep,
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                Expanded(child: StepBars(current: _step, total: 4)),
+                const SizedBox(width: 12),
+                Text('${_step + 1}/4', style: monoStyle(context, fontWeight: FontWeight.w700)),
+              ],
+            ),
           ),
-          Field(controller: _controllers['heightCm']!, label: 'Altura (cm)', min: 100, max: 250),
-          Field(controller: _controllers['weightKg']!, label: 'Peso (kg)', min: 30, max: 300),
-          const SectionTitle('Rotina'),
-          Field(controller: _controllers['dailySteps']!, label: 'Passos diarios', min: 0, max: 50000),
-          Field(controller: _controllers['exerciseHoursPerWeek']!, label: 'Horas de exercicio por semana', min: 0, max: 30),
-          Field(controller: _controllers['caloriesIntake']!, label: 'Calorias por dia', min: 800, max: 6000),
-          Field(controller: _controllers['hoursOfSleep']!, label: 'Horas de sono', min: 3, max: 14),
-          Field(controller: _controllers['alcoholPerWeek']!, label: 'Doses de alcool por semana', min: 0, max: 30),
-          const SectionTitle('Historico de saude'),
-          ChoiceField(
-            label: 'Fumante',
-            value: _smoker,
-            options: const {'No': 'Nao', 'Yes': 'Sim'},
-            onChanged: (value) => setState(() => _smoker = value),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 96),
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  child: _stepContent(context),
+                ),
+              ],
+            ),
           ),
-          ChoiceField(
-            label: 'Diabetes',
-            value: _diabetic,
-            options: const {'No': 'Nao', 'Yes': 'Sim'},
-            onChanged: (value) => setState(() => _diabetic = value),
-          ),
-          ChoiceField(
-            label: 'Doenca cardiaca',
-            value: _heartDisease,
-            options: const {'No': 'Nao', 'Yes': 'Sim'},
-            onChanged: (value) => setState(() => _heartDisease = value),
-          ),
-          Field(controller: _controllers['heartRate']!, label: 'Frequencia cardiaca', min: 40, max: 200, optional: true),
-          Field(controller: _controllers['bloodPressureSystolic']!, label: 'Pressao sistolica', min: 70, max: 200, optional: true),
-          Field(controller: _controllers['bloodPressureDiastolic']!, label: 'Pressao diastolica', min: 40, max: 130, optional: true),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _loading ? null : _submit,
-            icon: _loading
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.psychology_alt),
-            label: const Text('Gerar perfil'),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+            ),
+            child: Pressable(
+              child: FilledButton.icon(
+                onPressed: _loading ? null : _nextStep,
+                icon: _loading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(_step == 3 ? Icons.psychology_alt : Icons.arrow_forward),
+                label: Text(_step == 3 ? 'Analisar meu perfil' : 'Continuar'),
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _stepContent(BuildContext context) {
+    return switch (_step) {
+      0 => QuestionStep(
+          key: const ValueKey('personal'),
+          title: 'Sobre você',
+          subtitle: 'Dados básicos para calibrar a análise.',
+          children: [
+            VitalisSlider(
+              label: 'Idade',
+              value: _age.toDouble(),
+              min: 18,
+              max: 90,
+              suffix: ' anos',
+              onChanged: (value) => setState(() => _age = value.round()),
+            ),
+            ChoiceField(
+              label: 'Sexo biológico',
+              value: _gender,
+              options: const {'Female': 'Feminino', 'Male': 'Masculino'},
+              onChanged: (value) => setState(() => _gender = value),
+            ),
+            VitalisSlider(
+              label: 'Altura',
+              value: _heightCm,
+              min: 140,
+              max: 210,
+              suffix: ' cm',
+              onChanged: (value) => setState(() => _heightCm = value.roundToDouble()),
+            ),
+            VitalisSlider(
+              label: 'Peso',
+              value: _weightKg,
+              min: 40,
+              max: 160,
+              suffix: ' kg',
+              onChanged: (value) => setState(() => _weightKg = value.roundToDouble()),
+            ),
+          ],
+        ),
+      1 => QuestionStep(
+          key: const ValueKey('activity'),
+          title: 'Atividade física',
+          subtitle: 'Como é seu movimento no dia a dia.',
+          children: [
+            VitalisSlider(
+              label: 'Passos diários',
+              value: _dailySteps.toDouble(),
+              min: 1000,
+              max: 20000,
+              step: 500,
+              display: compactSteps(_dailySteps),
+              onChanged: (value) => setState(() => _dailySteps = (value / 500).round() * 500),
+            ),
+            VitalisSlider(
+              label: 'Exercício estruturado por semana',
+              value: _exerciseHoursPerWeek,
+              min: 0,
+              max: 14,
+              suffix: 'h',
+              onChanged: (value) => setState(() => _exerciseHoursPerWeek = value.roundToDouble()),
+            ),
+            ChoiceField(
+              label: 'Nível de atividade no trabalho',
+              value: _exerciseHoursPerWeek >= 5 ? 'active' : _exerciseHoursPerWeek >= 2 ? 'mixed' : 'sitting',
+              options: const {'sitting': 'Sentado', 'mixed': 'Misto', 'active': 'Ativo'},
+              onChanged: (value) => setState(() {
+                if (value == 'active') _exerciseHoursPerWeek = 5;
+                if (value == 'mixed') _exerciseHoursPerWeek = 2;
+                if (value == 'sitting') _exerciseHoursPerWeek = 0;
+              }),
+            ),
+          ],
+        ),
+      2 => QuestionStep(
+          key: const ValueKey('food-sleep'),
+          title: 'Alimentação & sono',
+          subtitle: 'Seus hábitos de consumo e descanso.',
+          children: [
+            VitalisSlider(
+              label: 'Calorias por dia',
+              value: _caloriesIntake.toDouble(),
+              min: 1200,
+              max: 4000,
+              step: 100,
+              suffix: ' kcal',
+              accent: const Color(0xFFF59E0B),
+              onChanged: (value) => setState(() => _caloriesIntake = (value / 100).round() * 100),
+            ),
+            StepperField(
+              label: 'Doses de álcool por semana',
+              value: _alcoholPerWeek,
+              suffix: _alcoholPerWeek == 1 ? 'dose' : 'doses',
+              min: 0,
+              max: 30,
+              onChanged: (value) => setState(() => _alcoholPerWeek = value),
+            ),
+            VitalisSlider(
+              label: 'Sono',
+              value: _hoursOfSleep,
+              min: 3,
+              max: 12,
+              suffix: 'h',
+              accent: const Color(0xFF7C3AED),
+              onChanged: (value) => setState(() => _hoursOfSleep = value.roundToDouble()),
+            ),
+          ],
+        ),
+      _ => QuestionStep(
+          key: const ValueKey('health'),
+          title: 'Histórico de saúde',
+          subtitle: 'Opcional, ajuda a personalizar sem diagnosticar.',
+          children: [
+            const DisclaimerBox(
+              text: 'O Vitalis oferece sugestões de bem-estar e não substitui orientação médica.',
+            ),
+            ToggleRow(
+              label: 'Fumante',
+              icon: Icons.bolt,
+              value: _smoker == 'Yes',
+              onChanged: (value) => setState(() => _smoker = value ? 'Yes' : 'No'),
+            ),
+            ToggleRow(
+              label: 'Diabetes',
+              icon: Icons.water_drop_outlined,
+              value: _diabetic == 'Yes',
+              onChanged: (value) => setState(() => _diabetic = value ? 'Yes' : 'No'),
+            ),
+            ToggleRow(
+              label: 'Doença cardíaca',
+              icon: Icons.favorite_border,
+              value: _heartDisease == 'Yes',
+              onChanged: (value) => setState(() => _heartDisease = value ? 'Yes' : 'No'),
+            ),
+            StepperField(
+              label: 'Frequência cardíaca em repouso',
+              value: _heartRate,
+              suffix: 'bpm',
+              min: 40,
+              max: 200,
+              onChanged: (value) => setState(() => _heartRate = value),
+            ),
+            Field(controller: _controllers['bloodPressureSystolic']!, label: 'Pressão sistólica opcional', min: 70, max: 200, optional: true),
+            Field(controller: _controllers['bloodPressureDiastolic']!, label: 'Pressão diastólica opcional', min: 40, max: 130, optional: true),
+          ],
+        ),
+    };
   }
 }
 
@@ -857,6 +1077,13 @@ class RemindersPage extends StatefulWidget {
 
 class _RemindersPageState extends State<RemindersPage> {
   late Future<Map<String, dynamic>> _future = _load();
+  final _confetti = ConfettiController(duration: const Duration(milliseconds: 1200));
+
+  @override
+  void dispose() {
+    _confetti.dispose();
+    super.dispose();
+  }
 
   Future<Map<String, dynamic>> _load() async {
     final data = await widget.api.get('/reminders/today');
@@ -877,8 +1104,14 @@ class _RemindersPageState extends State<RemindersPage> {
 
   Future<void> _complete(String id) async {
     try {
-      await widget.api.post('/reminders/$id/complete', {});
+      final result = await widget.api.post('/reminders/$id/complete', {});
       if (!mounted) return;
+      _showPointsToast(context, result['pointsEarned'] as int? ?? 0);
+      final current = await _load();
+      final reminders = (current['reminders'] as List?) ?? [];
+      final allDone = reminders.isNotEmpty &&
+          reminders.every((item) => item is Map && item['completedToday'] == true);
+      if (allDone) _confetti.play();
       setState(() => _future = _load());
     } catch (error) {
       if (!mounted) return;
@@ -888,46 +1121,59 @@ class _RemindersPageState extends State<RemindersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return DataScaffold(
-      future: _future,
-      onRefresh: () => setState(() => _future = _load()),
-      builder: (data) {
-        final reminders = (data['reminders'] as List?) ?? [];
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            SectionTitle(
-              'Hoje',
-              trailing: '${reminders.length}',
-              action: IconButton.filledTonal(
-                tooltip: 'Sincronizar notificacoes',
-                onPressed: reminders.isEmpty ? null : () => _syncNow(reminders),
-                icon: const Icon(Icons.notifications_active),
-              ),
-            ),
-            if (reminders.isNotEmpty)
-              InfoPanel(
-                icon: Icons.notifications_active,
-                title: 'Notificacoes ativas',
-                body: 'O celular avisara no horario de cada lembrete ativo.',
-              ),
-            if (reminders.isNotEmpty) const SizedBox(height: 10),
-            if (reminders.isEmpty) const EmptyState(text: 'Os lembretes aparecem depois da avaliacao.'),
-            ...reminders.map((item) {
-              final reminder = item as Map<String, dynamic>;
-              final done = reminder['completedToday'] == true;
-              return ReminderCard(
-                item: reminder,
-                action: IconButton.filledTonal(
-                  tooltip: done ? 'Concluido' : 'Concluir',
-                  onPressed: done ? null : () => _complete(reminder['id'].toString()),
-                  icon: Icon(done ? Icons.check_circle : Icons.check),
+    return Stack(
+      children: [
+        DataScaffold(
+          future: _future,
+          onRefresh: () => setState(() => _future = _load()),
+          builder: (data) {
+            final reminders = (data['reminders'] as List?) ?? [];
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                SectionTitle(
+                  'Hoje',
+                  trailing: '${reminders.length}',
+                  action: IconButton.filledTonal(
+                    tooltip: 'Sincronizar notificacoes',
+                    onPressed: reminders.isEmpty ? null : () => _syncNow(reminders),
+                    icon: const Icon(Icons.notifications_active),
+                  ),
                 ),
-              );
-            }),
-          ],
-        );
-      },
+                if (reminders.isNotEmpty)
+                  InfoPanel(
+                    icon: Icons.notifications_active,
+                    title: 'Notificacoes ativas',
+                    body: 'O celular avisara no horario de cada lembrete ativo.',
+                  ),
+                if (reminders.isNotEmpty) const SizedBox(height: 10),
+                if (reminders.isEmpty) const EmptyState(text: 'Os lembretes aparecem depois da avaliacao.'),
+                ...reminders.map((item) {
+                  final reminder = item as Map<String, dynamic>;
+                  final done = reminder['completedToday'] == true;
+                  return ReminderCard(
+                    item: reminder,
+                    action: IconButton.filledTonal(
+                      tooltip: done ? 'Concluido' : 'Concluir',
+                      onPressed: done ? null : () => _complete(reminder['id'].toString()),
+                      icon: Icon(done ? Icons.check_circle : Icons.check),
+                    ),
+                  );
+                }),
+              ],
+            );
+          },
+        ),
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confetti,
+            blastDirectionality: BlastDirectionality.explosive,
+            numberOfParticles: 60,
+            colors: const [teal600, teal400, Color(0xFFF59E0B), Color(0xFF7C3AED)],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -970,6 +1216,29 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icons.person,
               title: widget.session.user?['name']?.toString() ?? 'Usuario Vitalis',
               body: widget.session.user?['email']?.toString() ?? '',
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: panelDecoration(context),
+              child: Row(
+                children: [
+                  const Icon(Icons.dark_mode_outlined),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Tema escuro')),
+                  ValueListenableBuilder<ThemeMode>(
+                    valueListenable: appThemeMode,
+                    builder: (context, mode, _) {
+                      return Switch(
+                        value: mode == ThemeMode.dark,
+                        onChanged: (enabled) {
+                          appThemeMode.value = enabled ? ThemeMode.dark : ThemeMode.light;
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             Row(
@@ -1069,19 +1338,27 @@ class ProfileSummary extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.health_and_safety),
-                  const SizedBox(width: 8),
+                  ScoreRing(
+                    value: ((summary['profileScore'] as num?)?.toDouble() ?? 0) / 100,
+                    label: '${summary['profileScore'] ?? 0}',
+                    size: 70,
+                    color: profileColor(summary['profile']?.toString()),
+                  ),
+                  const SizedBox(width: 14),
                   Expanded(
-                    child: Text(
-                      profileLabel(summary['profile']?.toString()),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profileLabel(summary['profile']?.toString()),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        Text('Índice de bem-estar', style: Theme.of(context).textTheme.bodySmall),
+                      ],
                     ),
                   ),
-                  Text('${summary['profileScore'] ?? 0}/100'),
                 ],
               ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(value: ((summary['profileScore'] as num?)?.toDouble() ?? 0) / 100),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -1451,108 +1728,180 @@ class MealPlanPanel extends StatelessWidget {
   }
 }
 
-class MealCard extends StatelessWidget {
+class MealCard extends StatefulWidget {
   const MealCard({super.key, required this.meal});
 
   final Map<String, dynamic> meal;
 
   @override
+  State<MealCard> createState() => _MealCardState();
+}
+
+class _MealCardState extends State<MealCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final meal = widget.meal;
     final type = meal['mealType']?.toString() ?? 'meal';
     final color = _mealColor(context, type);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: panelDecoration(context),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(height: 5, color: color),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(_mealIcon(type), color: color),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              mealLabel(type),
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                            Text(
-                              meal['title']?.toString() ?? 'Refeicao',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(meal['description']?.toString() ?? ''),
-                  if (meal['tip'] != null) ...[
-                    const SizedBox(height: 10),
+    return Pressable(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: panelDecoration(context),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(height: 5, color: color),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      width: 42,
+                      height: 42,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
+                        color: color.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(
+                      child: Icon(_mealIcon(type), color: color),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.lightbulb_outline, size: 18, color: Theme.of(context).colorScheme.secondary),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(meal['tip'].toString())),
+                          Text(
+                            mealLabel(type),
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          Text(
+                            meal['title']?.toString() ?? 'Refeicao',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                          ),
                         ],
                       ),
                     ),
+                    Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(meal['description']?.toString() ?? ''),
+                      if (meal['tip'] != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.lightbulb_outline, size: 18, color: Theme.of(context).colorScheme.secondary),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(meal['tip'].toString())),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 220),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class WeeklyRoutinePanel extends StatelessWidget {
+class WeeklyRoutinePanel extends StatefulWidget {
   const WeeklyRoutinePanel({super.key, required this.data});
 
   final Object? data;
 
   @override
+  State<WeeklyRoutinePanel> createState() => _WeeklyRoutinePanelState();
+}
+
+class _WeeklyRoutinePanelState extends State<WeeklyRoutinePanel> {
+  int _selected = 0;
+
+  @override
   Widget build(BuildContext context) {
-    final days = mapList(data);
+    final days = mapList(widget.data);
     if (days.isEmpty) return const SizedBox.shrink();
+    final day = days[_selected.clamp(0, days.length - 1)];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 4),
         const SectionTitle('Rotina semanal'),
-        ...days.map((day) => DayRoutineCard(day: day)),
+        SizedBox(
+          height: 64,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: days.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final selected = index == _selected;
+              final label = days[index]['day']?.toString() ?? 'Dia';
+              return Pressable(
+                onTap: () => setState(() => _selected = index),
+                child: Container(
+                  width: 58,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        label.substring(0, label.length >= 3 ? 3 : label.length),
+                        style: TextStyle(
+                          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        '${index + 10}',
+                        style: monoStyle(
+                          context,
+                          fontWeight: FontWeight.w800,
+                          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        DayRoutineCard(day: day),
       ],
     );
   }
@@ -1687,6 +2036,358 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+class Pressable extends StatefulWidget {
+  const Pressable({super.key, required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  State<Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<Pressable> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class StepBars extends StatelessWidget {
+  const StepBars({super.key, required this.current, required this.total});
+
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(total, (index) {
+        final active = index <= current;
+        return Expanded(
+          child: Container(
+            height: 5,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class ScoreRing extends StatelessWidget {
+  const ScoreRing({
+    super.key,
+    required this.value,
+    required this.label,
+    required this.color,
+    this.size = 132,
+  });
+
+  final double value;
+  final String label;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: value.clamp(0, 1)),
+      duration: const Duration(milliseconds: 1100),
+      curve: Curves.easeOutCubic,
+      builder: (context, animated, _) {
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: Size.square(size),
+                painter: ScoreRingPainter(
+                  value: animated,
+                  color: color,
+                  trackColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: monoStyle(context, fontSize: size * 0.26, fontWeight: FontWeight.w900)),
+                  if (size > 90) Text('de 100', style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ScoreRingPainter extends CustomPainter {
+  ScoreRingPainter({required this.value, required this.color, required this.trackColor});
+
+  final double value;
+  final Color color;
+  final Color trackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * 0.08;
+    final rect = Offset.zero & size;
+    final inset = stroke / 2;
+    final arcRect = rect.deflate(inset);
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = trackColor;
+    final progress = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    canvas.drawArc(arcRect, -1.5708, 6.283, false, track);
+    canvas.drawArc(arcRect, -1.5708, 6.283 * value, false, progress);
+  }
+
+  @override
+  bool shouldRepaint(covariant ScoreRingPainter oldDelegate) {
+    return oldDelegate.value != value || oldDelegate.color != color || oldDelegate.trackColor != trackColor;
+  }
+}
+
+class QuestionStep extends StatelessWidget {
+  const QuestionStep({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 22),
+        ...children,
+      ],
+    );
+  }
+}
+
+class VitalisSlider extends StatelessWidget {
+  const VitalisSlider({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+    this.suffix = '',
+    this.display,
+    this.step = 1,
+    this.accent,
+  });
+
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final String suffix;
+  final String? display;
+  final double step;
+  final Color? accent;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = accent ?? Theme.of(context).colorScheme.primary;
+    final divisions = ((max - min) / step).round();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800))),
+              Text(display ?? '${formatMetric(value)}$suffix', style: monoStyle(context, fontSize: 22, fontWeight: FontWeight.w800)),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: color,
+              inactiveTrackColor: color.withValues(alpha: 0.08),
+              thumbColor: Colors.white,
+              overlayColor: color.withValues(alpha: 0.12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11),
+              trackHeight: 6,
+            ),
+            child: Slider(
+              value: value.clamp(min, max),
+              min: min,
+              max: max,
+              divisions: divisions > 0 ? divisions : null,
+              onChanged: onChanged,
+            ),
+          ),
+          Row(
+            children: [
+              Text('${formatMetric(min)}$suffix', style: Theme.of(context).textTheme.bodySmall),
+              const Spacer(),
+              Text('${formatMetric(max)}$suffix', style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class StepperField extends StatelessWidget {
+  const StepperField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.suffix,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final String suffix;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: panelDecoration(context),
+            child: Row(
+              children: [
+                IconButton.filledTonal(
+                  onPressed: value <= min ? null : () => onChanged(value - 1),
+                  icon: const Icon(Icons.remove),
+                ),
+                Expanded(
+                  child: Text(
+                    '$value $suffix',
+                    textAlign: TextAlign.center,
+                    style: monoStyle(context, fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  onPressed: value >= max ? null : () => onChanged(value + 1),
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ToggleRow extends StatelessWidget {
+  const ToggleRow({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: panelDecoration(context),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class DisclaimerBox extends StatelessWidget {
+  const DisclaimerBox({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, style: BorderStyle.solid),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+        ],
+      ),
+    );
+  }
+}
+
 class Field extends StatelessWidget {
   const Field({
     super.key,
@@ -1787,6 +2488,16 @@ String profileLabel(String? profile) {
   };
 }
 
+Color profileColor(String? profile) {
+  return switch (profile) {
+    'Saudavel_Ativo' => const Color(0xFF22C55E),
+    'Moderado' => const Color(0xFFF59E0B),
+    'Sedentario' => const Color(0xFFF97316),
+    'Em_Risco' => const Color(0xFFEF4444),
+    _ => teal600,
+  };
+}
+
 String modelLabel(String modelVersion) {
   if (modelVersion.toLowerCase().startsWith('ml')) return 'Modelo IA $modelVersion';
   if (modelVersion == 'rules-v1') return 'Regras locais';
@@ -1820,6 +2531,27 @@ String formatMetric(Object? value) {
     return rounded.toStringAsFixed(1);
   }
   return value?.toString() ?? '-';
+}
+
+TextStyle monoStyle(
+  BuildContext context, {
+  double? fontSize,
+  FontWeight? fontWeight,
+  Color? color,
+}) {
+  return GoogleFonts.jetBrainsMono(
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color ?? Theme.of(context).colorScheme.onSurface,
+  );
+}
+
+String compactSteps(int value) {
+  if (value >= 1000) {
+    final k = value / 1000;
+    return '${k.toStringAsFixed(k == k.roundToDouble() ? 0 : 1)}k';
+  }
+  return value.toString();
 }
 
 List<Map<String, dynamic>> mapList(Object? value) {
@@ -1964,34 +2696,45 @@ void _showResult(BuildContext context, Map<String, dynamic> result) {
   final confidence = classification?['confidence'] as num?;
   final modelVersion = classification?['modelVersion']?.toString() ?? explanation?['modelVersion']?.toString();
 
-  showDialog<void>(
+  showModalBottomSheet<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Perfil gerado'),
-      content: SingleChildScrollView(
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            Text('Seu perfil', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            ScoreRing(
+              value: ((plan?['profileScore'] as num?)?.toDouble() ?? 0) / 100,
+              label: '${plan?['profileScore'] ?? '-'}',
+              color: profileColor(plan?['profile']?.toString()),
+            ),
+            const SizedBox(height: 12),
             Text(
               profileLabel(plan?['profile']?.toString()),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
-            Text('Score: ${plan?['profileScore'] ?? '-'}/100'),
-            Text(plan?['clusterLabel']?.toString() ?? 'Cluster em analise'),
+            Chip(label: Text('Cluster: ${plan?['clusterLabel'] ?? 'em analise'}')),
             if (modelVersion != null) Text(modelLabel(modelVersion)),
             if (confidence != null) Text('Confianca: ${(confidence.toDouble() * 100).round()}%'),
             if (messages.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(messages.first),
             ],
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Ver meu plano personalizado'),
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
-      ],
     ),
   );
 }
@@ -2002,6 +2745,35 @@ void _showError(BuildContext context, Object error) {
       behavior: SnackBarBehavior.floating,
       showCloseIcon: true,
       content: Text(error is ApiException ? error.message : error.toString()),
+    ),
+  );
+}
+
+void _showPointsToast(BuildContext context, int points) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: const Color(0xFF0E1A24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      content: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle, color: teal400),
+          const SizedBox(width: 10),
+          const Text('Lembrete concluido'),
+          if (points > 0) ...[
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('+$points pts', style: const TextStyle(color: Color(0xFFF59E0B), fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ],
+      ),
     ),
   );
 }
