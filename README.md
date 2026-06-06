@@ -12,20 +12,20 @@ App de **saúde, bem-estar e hábitos** que classifica o perfil comportamental d
 
 | Recurso | URL |
 |---------|-----|
-| **API** | http://4.229.233.225:3333 |
 | **Swagger UI** | http://4.229.233.225:3333/docs |
-| **OpenAPI JSON** | http://4.229.233.225:3333/docs.json |
-| **Health check** | http://4.229.233.225:3333/health/ready |
 
-No Swagger: faça login em `POST /auth/login`, copie o `accessToken` e clique em **Authorize** → `Bearer <token>`.
+Documentação interativa da API — faça login em `POST /auth/login`, copie o `accessToken` e clique em **Authorize** → `Bearer <token>`.
 
 ---
 
 ## Equipe
 
-| Integrante | RM |
-|------------|-----|
-| *(preencher)* | |
+| Integrante |
+|------------|
+| Vitor Siqueira Simeao |
+| Uriel Monte Paz de Araujo |
+| Gabriel Aleixo |
+| Dimerson |
 
 ---
 
