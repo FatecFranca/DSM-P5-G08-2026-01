@@ -27,7 +27,22 @@ export function createApp() {
   app.use(express.json({ limit: "1mb" }));
   app.use(requestLogger);
 
-  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customSiteTitle: "Vitalis API — Swagger",
+      swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        docExpansion: "list",
+        filter: true,
+      },
+    }),
+  );
+  app.get("/docs.json", (_req, res) => {
+    res.json(swaggerSpec);
+  });
 
   app.use("/health", healthRouter);
   app.use("/auth", authRouter);

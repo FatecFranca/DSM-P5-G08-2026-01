@@ -94,7 +94,7 @@ pnpm db:seed
 pnpm api:dev        # http://localhost:3333
 ```
 
-Swagger: [http://localhost:3333/docs](http://localhost:3333/docs)
+Swagger: [http://4.229.233.225:3333/docs](http://4.229.233.225:3333/docs) · OpenAPI: `/docs.json`
 
 ### 4. Serviço ML
 

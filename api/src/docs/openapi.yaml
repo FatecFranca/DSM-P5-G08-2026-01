@@ -1,23 +1,154 @@
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [USER, ADMIN] }
+        createdAt: { type: string, format: date-time }
+
+    AuthTokens:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        refreshExpiresAt: { type: string, format: date-time }
+        token: { type: string, description: Alias de accessToken }
+
+    AssessmentInput:
+      type: object
+      required:
+        - age
+        - gender
+        - heightCm
+        - weightKg
+        - dailySteps
+        - caloriesIntake
+        - hoursOfSleep
+        - exerciseHoursPerWeek
+        - smoker
+        - alcoholPerWeek
+        - diabetic
+        - heartDisease
+      properties:
+        age: { type: integer, minimum: 18, maximum: 120 }
+        gender: { type: string, enum: [Male, Female] }
+        heightCm: { type: number, minimum: 100, maximum: 250 }
+        weightKg: { type: number, minimum: 30, maximum: 300 }
+        dailySteps: { type: integer, minimum: 0, maximum: 50000 }
+        caloriesIntake: { type: integer, minimum: 800, maximum: 6000 }
+        hoursOfSleep: { type: number, minimum: 3, maximum: 14 }
+        heartRate: { type: integer, minimum: 40, maximum: 200 }
+        bloodPressureSystolic: { type: integer, minimum: 70, maximum: 200 }
+        bloodPressureDiastolic: { type: integer, minimum: 40, maximum: 130 }
+        exerciseHoursPerWeek: { type: number, minimum: 0, maximum: 30 }
+        smoker: { type: string, enum: [Yes, No] }
+        alcoholPerWeek: { type: integer, minimum: 0, maximum: 30 }
+        diabetic: { type: string, enum: [Yes, No] }
+        heartDisease: { type: string, enum: [Yes, No] }
+
+    HealthProfile:
+      type: string
+      enum: [Em_Risco, Sedentario, Moderado, Saudavel_Ativo]
+
+    ReminderInput:
+      type: object
+      required: [type, title, timeOfDay]
+      properties:
+        type: { type: string, enum: [WATER, MEAL, SLEEP, EXERCISE] }
+        title: { type: string, minLength: 2, maxLength: 100 }
+        message: { type: string, maxLength: 255 }
+        timeOfDay: { type: string, pattern: "^\\d{2}:\\d{2}$", example: "09:00" }
+        frequency: { type: string, enum: [DAILY, WEEKLY], default: DAILY }
+        isActive: { type: boolean, default: true }
+
+  responses:
+    Unauthorized:
+      description: Não autenticado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Sem permissão
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
 paths:
   /health:
     get:
-      summary: Status da API
+      summary: Status da API (liveness)
       tags: [Health]
       responses:
         "200":
-          description: OK
+          description: API online
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: vitalis-api }
+                  version: { type: string, example: "0.2.0" }
+
   /health/ready:
     get:
-      summary: Readiness (DB + ML)
+      summary: Readiness (PostgreSQL + serviço ML)
       tags: [Health]
       responses:
         "200":
-          description: Pronto
+          description: Pronto para receber tráfego
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ready, not_ready] }
+                  database: { type: string, enum: [connected, disconnected] }
+                  ml:
+                    type: object
+                    properties:
+                      available: { type: boolean }
+                      url: { type: string }
         "503":
-          description: Indisponivel
+          description: Banco ou ML indisponível
+
+  /health/questionnaire:
+    get:
+      summary: Metadados do questionário (seções e perfis)
+      tags: [Health]
+      responses:
+        "200":
+          description: Schema dinâmico do formulário
+
+  /health/clusters:
+    get:
+      summary: Definições públicas dos clusters ML
+      tags: [Health]
+      responses:
+        "200":
+          description: Lista de clusters
+
   /auth/register:
     post:
-      summary: Cadastro de usuario
+      summary: Cadastro de usuário
       tags: [Auth]
       requestBody:
         required: true
@@ -27,12 +158,18 @@ paths:
               type: object
               required: [name, email, password]
               properties:
-                name: { type: string }
-                email: { type: string }
-                password: { type: string, minLength: 8 }
+                name: { type: string, minLength: 2, maxLength: 120 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6, maxLength: 72 }
       responses:
         "201":
-          description: Usuario criado
+          description: Usuário criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "409":
+          description: E-mail já cadastrado
+
   /auth/login:
     post:
       summary: Login
@@ -45,17 +182,341 @@ paths:
               type: object
               required: [email, password]
               properties:
-                email: { type: string }
+                email: { type: string, format: email }
                 password: { type: string }
       responses:
         "200":
           description: Tokens JWT
-  /assessments:
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401":
+          description: Credenciais inválidas
+
+  /auth/refresh:
     post:
-      summary: Enviar questionario e classificar perfil (ML + Gemini opcional)
+      summary: Renovar access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200":
+          description: Novos tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/logout:
+    post:
+      summary: Revogar refresh token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "204":
+          description: Logout realizado
+
+  /auth/logout-all:
+    post:
+      summary: Revogar todos os refresh tokens do usuário
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204":
+          description: Sessões encerradas
+
+  /auth/me:
+    get:
+      summary: Perfil do usuário autenticado
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Dados do usuário
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+    patch:
+      summary: Atualizar nome do perfil
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 120 }
+      responses:
+        "200":
+          description: Perfil atualizado
+
+  /auth/password:
+    patch:
+      summary: Alterar senha
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 6, maxLength: 72 }
+      responses:
+        "200":
+          description: Senha alterada
+        "401":
+          description: Senha atual incorreta
+
+  /dashboard:
+    get:
+      summary: Dashboard agregado (perfil, lembretes, recomendações, gamificação)
+      tags: [Dashboard]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Dados do início do app
+
+  /clusters/me:
+    get:
+      summary: Cluster atual do usuário
+      tags: [Clusters]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Cluster e classificação
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /clusters/me/stats:
+    get:
+      summary: Comparativo com média do cluster (passos, sono, exercício, IMC)
+      tags: [Clusters]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Estatísticas agregadas anônimas do grupo
+
+  /assessments:
+    get:
+      summary: Histórico paginado de avaliações
       tags: [Assessments]
-      security:
-        - bearerAuth: []
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Lista de avaliações
+    post:
+      summary: Enviar questionário e classificar perfil (ML + Gemini opcional)
+      tags: [Assessments]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssessmentInput" }
+      responses:
+        "201":
+          description: Avaliação classificada com plano, explicação e gamificação
+
+  /assessments/latest:
+    get:
+      summary: Última avaliação do usuário
+      tags: [Assessments]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Avaliação mais recente
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /assessments/evolution:
+    get:
+      summary: Evolução do score e métricas ao longo do tempo
+      tags: [Assessments]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Série temporal de perfis
+
+  /assessments/compare:
+    get:
+      summary: Comparar duas avaliações
+      tags: [Assessments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: to
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Diff entre avaliações
+
+  /assessments/{id}:
+    get:
+      summary: Detalhe de uma avaliação
+      tags: [Assessments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Avaliação com classificação
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /assessments/{id}/explanation:
+    get:
+      summary: Explicação detalhada da classificação (fatores ML/Gemini)
+      tags: [Assessments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Fatores, mensagens e confiança do modelo
+
+  /recommendations:
+    get:
+      summary: Recomendações ativas do usuário
+      tags: [Recommendations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Lista com template (DIET, ROUTINE, EXERCISE, HYDRATION, SLEEP)
+
+  /recommendations/by-category:
+    get:
+      summary: Recomendações agrupadas por categoria
+      tags: [Recommendations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Objeto grouped por categoria
+
+  /recommendations/meal-plan:
+    get:
+      summary: Plano alimentar sugerido
+      tags: [Recommendations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Refeições por tipo (breakfast, lunch, dinner, snack)
+
+  /recommendations/weekly-routine:
+    get:
+      summary: Rotina semanal sugerida
+      tags: [Recommendations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Atividades por dia da semana
+
+  /recommendations/{id}/toggle:
+    patch:
+      summary: Ativar/desativar recomendação
+      tags: [Recommendations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              properties:
+                isActive: { type: boolean }
+      responses:
+        "200":
+          description: Recomendação atualizada
+
+  /reminders/today:
+    get:
+      summary: Lembretes de hoje (com flag completedToday)
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Lembretes do dia
+
+  /reminders:
+    get:
+      summary: Listar todos os lembretes
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Lista completa
+    post:
+      summary: Criar lembrete
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReminderInput" }
+      responses:
+        "201":
+          description: Lembrete criado
+
+  /reminders/{id}:
+    patch:
+      summary: Atualizar lembrete
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -63,24 +524,99 @@ paths:
             schema:
               type: object
               properties:
-                age: { type: integer }
-                gender: { type: string, enum: [Male, Female] }
-                heightCm: { type: number }
-                weightKg: { type: number }
-                dailySteps: { type: integer }
-                caloriesIntake: { type: integer }
-                hoursOfSleep: { type: number }
-                exerciseHoursPerWeek: { type: number }
-                smoker: { type: string, enum: [Yes, No] }
-                alcoholPerWeek: { type: integer }
-                diabetic: { type: string, enum: [Yes, No] }
-                heartDisease: { type: string, enum: [Yes, No] }
+                type: { type: string, enum: [WATER, MEAL, SLEEP, EXERCISE] }
+                title: { type: string }
+                message: { type: string }
+                timeOfDay: { type: string }
+                frequency: { type: string, enum: [DAILY, WEEKLY] }
+                isActive: { type: boolean }
       responses:
-        "201":
-          description: Avaliacao classificada
-  /dashboard:
+        "200":
+          description: Lembrete atualizado
+    delete:
+      summary: Excluir lembrete
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Lembrete removido
+
+  /reminders/{id}/complete:
+    post:
+      summary: Marcar lembrete como concluído hoje (+ pontos)
+      tags: [Reminders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Gamificação atualizada com pointsEarned
+
+  /gamification:
     get:
-      summary: Dashboard agregado do usuario
-      tags: [Dashboard]
-      security:
-        - bearerAuth: []
+      summary: Perfil de gamificação (pontos, nível, streak)
+      tags: [Gamification]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Pontos, nível e pontos para próximo nível
+
+  /gamification/achievements:
+    get:
+      summary: Conquistas desbloqueadas e catálogo
+      tags: [Gamification]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Lista de achievements com unlocked
+
+  /gamification/leaderboard:
+    get:
+      summary: Ranking Top 10 usuários
+      tags: [Gamification]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Leaderboard por pontos
+
+  /admin/stats:
+    get:
+      summary: Métricas gerais do sistema
+      tags: [Admin]
+      security: [{ bearerAuth: [] }, { adminKey: [] }]
+      responses:
+        "200":
+          description: Totais de usuários, avaliações, lembretes
+
+  /admin/users:
+    get:
+      summary: Listar usuários (paginado)
+      tags: [Admin]
+      security: [{ bearerAuth: [] }, { adminKey: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Lista de usuários
+
+  /admin/clusters:
+    get:
+      summary: Distribuição de usuários por cluster
+      tags: [Admin]
+      security: [{ bearerAuth: [] }, { adminKey: [] }]
+      responses:
+        "200":
+          description: Estatísticas de clusters
