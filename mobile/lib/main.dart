@@ -1,10 +1,17 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.instance.initialize();
   runApp(const VitalisApp());
 }
 
@@ -149,18 +156,128 @@ class ApiClient {
     final text = utf8.decode(response.bodyBytes);
     final data = text.isEmpty ? <String, dynamic>{} : jsonDecode(text) as Map<String, dynamic>;
     if (response.statusCode >= 400) {
-      throw ApiException(data['message']?.toString() ?? 'Erro ${response.statusCode}');
+      throw ApiException.fromResponse(response.statusCode, data);
     }
     return data;
   }
 }
 
 class ApiException implements Exception {
-  ApiException(this.message);
+  ApiException(this.message, {this.statusCode, this.details});
+
   final String message;
+  final int? statusCode;
+  final Object? details;
+
+  factory ApiException.fromResponse(int statusCode, Map<String, dynamic> data) {
+    final details = data['details'];
+    final baseMessage = data['error']?.toString() ??
+        data['message']?.toString() ??
+        _fallbackMessage(statusCode);
+    final detailMessage = _detailsMessage(details);
+    return ApiException(
+      detailMessage == null ? baseMessage : '$baseMessage: $detailMessage',
+      statusCode: statusCode,
+      details: details,
+    );
+  }
 
   @override
   String toString() => message;
+}
+
+class NotificationService {
+  NotificationService._();
+
+  static final instance = NotificationService._();
+  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  bool _initialized = false;
+
+  Future<void> initialize() async {
+    if (_initialized || kIsWeb) return;
+
+    tzdata.initializeTimeZones();
+    try {
+      final timezone = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timezone.identifier));
+    } catch (_) {
+      tz.setLocalLocation(tz.local);
+    }
+
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const ios = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    const settings = InitializationSettings(android: android, iOS: ios);
+    await _plugin.initialize(settings: settings);
+    await _requestPermissions();
+    _initialized = true;
+  }
+
+  Future<bool> _requestPermissions() async {
+    if (kIsWeb) return false;
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+
+    final androidGranted = await android?.requestNotificationsPermission();
+    final iosGranted = await ios?.requestPermissions(alert: true, badge: true, sound: true);
+    return androidGranted ?? iosGranted ?? true;
+  }
+
+  Future<void> syncReminders(List reminders) async {
+    if (kIsWeb) return;
+    await initialize();
+    await _plugin.cancelAll();
+
+    for (final item in reminders) {
+      if (item is! Map) continue;
+      final reminder = Map<String, dynamic>.from(item);
+      if (reminder['isActive'] == false) continue;
+      if (reminder['completedToday'] == true) continue;
+      final timeOfDay = reminder['timeOfDay']?.toString();
+      if (timeOfDay == null || !RegExp(r'^\d{2}:\d{2}$').hasMatch(timeOfDay)) continue;
+
+      await _scheduleDaily(reminder, timeOfDay);
+    }
+  }
+
+  Future<void> _scheduleDaily(Map<String, dynamic> reminder, String timeOfDay) async {
+    final parts = timeOfDay.split(':').map(int.parse).toList();
+    final scheduledAt = _nextInstanceOf(parts[0], parts[1]);
+    final id = reminder['id']?.toString().hashCode.abs() ?? timeOfDay.hashCode.abs();
+
+    await _plugin.zonedSchedule(
+      id: id,
+      title: reminder['title']?.toString() ?? 'Lembrete Vitalis',
+      body: reminder['message']?.toString().isNotEmpty == true
+          ? reminder['message'].toString()
+          : 'Hora de cuidar da sua rotina.',
+      scheduledDate: scheduledAt,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'vitalis_reminders',
+          'Lembretes Vitalis',
+          channelDescription: 'Lembretes de habitos e rotina do Vitalis',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  tz.TZDateTime _nextInstanceOf(int hour, int minute) {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
+  }
 }
 
 class RootScreen extends StatefulWidget {
@@ -210,23 +327,15 @@ class _AuthScreenState extends State<AuthScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _apiUrl = TextEditingController();
   bool _register = false;
   bool _loading = false;
   bool _obscurePassword = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _apiUrl.text = widget.session.apiUrl;
-  }
 
   @override
   void dispose() {
     _name.dispose();
     _email.dispose();
     _password.dispose();
-    _apiUrl.dispose();
     super.dispose();
   }
 
@@ -244,46 +353,10 @@ class _AuthScreenState extends State<AuthScreen> {
       await widget.session.saveAuth(data);
     } catch (error) {
       if (!mounted) return;
-      _showError(context, error);
+      _showError(context, _authErrorMessage(error, isRegister: _register));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<void> _openApiSettings() async {
-    _apiUrl.text = widget.session.apiUrl;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Configuracao da API'),
-        content: TextFormField(
-          controller: _apiUrl,
-          decoration: const InputDecoration(
-            labelText: 'Endereco da API',
-            helperText: 'Use somente se estiver em outro dispositivo ou emulador.',
-          ),
-          keyboardType: TextInputType.url,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
-    );
-
-    if (saved != true) return;
-    if (!_apiUrl.text.trim().startsWith('http')) {
-      if (!mounted) return;
-      _showError(context, ApiException('Informe uma URL valida'));
-      return;
-    }
-    await widget.session.saveApiUrl(_apiUrl.text);
   }
 
   @override
@@ -297,17 +370,6 @@ class _AuthScreenState extends State<AuthScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: IconButton(
-                  tooltip: 'Configuracao da API',
-                  onPressed: _openApiSettings,
-                  icon: const Icon(Icons.settings_outlined),
-                ),
-              ),
-            ),
             Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
@@ -446,6 +508,21 @@ class _HomeShellState extends State<HomeShell> {
   int _tab = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _syncNotifications();
+  }
+
+  Future<void> _syncNotifications() async {
+    try {
+      final data = await ApiClient(widget.session).get('/reminders/today');
+      await NotificationService.instance.syncReminders((data['reminders'] as List?) ?? []);
+    } catch (_) {
+      // Notificacoes sao conveniencia local; a API continua sendo a fonte principal.
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final api = ApiClient(widget.session);
     final pages = [
@@ -495,7 +572,25 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late Future<Map<String, dynamic>> _future = _load();
 
-  Future<Map<String, dynamic>> _load() => widget.api.get('/dashboard');
+  Future<Map<String, dynamic>> _load() async {
+    final dashboard = await widget.api.get('/dashboard');
+    final health = await widget.api.get('/health/ready').catchError((_) => <String, dynamic>{});
+    final latest = await widget.api.get('/assessments/latest').catchError((_) => <String, dynamic>{});
+    final clusterStats = await widget.api.get('/clusters/me/stats').catchError((_) => <String, dynamic>{});
+    final assessment = latest['assessment'] as Map<String, dynamic>?;
+    final assessmentId = assessment?['id']?.toString();
+    final explanation = assessmentId == null
+        ? <String, dynamic>{}
+        : await widget.api.get('/assessments/$assessmentId/explanation').catchError((_) => <String, dynamic>{});
+
+    return {
+      ...dashboard,
+      'health': health,
+      'latest': assessment,
+      'explanationDetails': explanation,
+      'clusterStats': clusterStats['stats'],
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -508,10 +603,16 @@ class _DashboardPageState extends State<DashboardPage> {
         final gamification = dashboard['gamification'] as Map<String, dynamic>?;
         final reminders = (dashboard['remindersToday'] as List?) ?? [];
         final recommendations = (dashboard['recommendations'] as List?) ?? [];
+        final health = data['health'] as Map<String, dynamic>;
+        final latest = data['latest'] as Map<String, dynamic>?;
+        final explanationDetails = data['explanationDetails'] as Map<String, dynamic>;
+        final clusterStats = data['clusterStats'] as Map<String, dynamic>?;
 
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            MlStatusPanel(health: health),
+            const SizedBox(height: 12),
             if (summary == null)
               InfoPanel(
                 icon: Icons.assignment_add,
@@ -519,7 +620,15 @@ class _DashboardPageState extends State<DashboardPage> {
                 body: 'Preencha o questionario para gerar perfil, recomendacoes e lembretes.',
               )
             else
-              ProfileSummary(summary: summary),
+              ProfileSummary(summary: summary, latest: latest, explanation: explanationDetails),
+            if (explanationDetails['explanation'] != null) ...[
+              const SizedBox(height: 12),
+              AiExplanationPanel(data: explanationDetails),
+            ],
+            if (clusterStats != null) ...[
+              const SizedBox(height: 12),
+              ClusterStatsPanel(stats: clusterStats),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -728,8 +837,8 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
             if (recommendations.isEmpty) const EmptyState(text: 'Preencha uma avaliacao para receber recomendacoes.'),
             ...recommendations.map((item) => RecommendationCard(item: item as Map<String, dynamic>)),
             const SizedBox(height: 16),
-            if (meal['meals'] != null) PlanPanel(title: 'Plano alimentar', data: meal['meals']),
-            if (routine['week'] != null) PlanPanel(title: 'Rotina semanal', data: routine['week']),
+            MealPlanPanel(data: meal['meals']),
+            WeeklyRoutinePanel(data: routine['week']),
           ],
         );
       },
@@ -749,7 +858,22 @@ class RemindersPage extends StatefulWidget {
 class _RemindersPageState extends State<RemindersPage> {
   late Future<Map<String, dynamic>> _future = _load();
 
-  Future<Map<String, dynamic>> _load() => widget.api.get('/reminders/today');
+  Future<Map<String, dynamic>> _load() async {
+    final data = await widget.api.get('/reminders/today');
+    await NotificationService.instance.syncReminders((data['reminders'] as List?) ?? []);
+    return data;
+  }
+
+  Future<void> _syncNow(List reminders) async {
+    await NotificationService.instance.syncReminders(reminders);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text('Notificacoes dos lembretes sincronizadas.'),
+      ),
+    );
+  }
 
   Future<void> _complete(String id) async {
     try {
@@ -772,7 +896,22 @@ class _RemindersPageState extends State<RemindersPage> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const SectionTitle('Hoje'),
+            SectionTitle(
+              'Hoje',
+              trailing: '${reminders.length}',
+              action: IconButton.filledTonal(
+                tooltip: 'Sincronizar notificacoes',
+                onPressed: reminders.isEmpty ? null : () => _syncNow(reminders),
+                icon: const Icon(Icons.notifications_active),
+              ),
+            ),
+            if (reminders.isNotEmpty)
+              InfoPanel(
+                icon: Icons.notifications_active,
+                title: 'Notificacoes ativas',
+                body: 'O celular avisara no horario de cada lembrete ativo.',
+              ),
+            if (reminders.isNotEmpty) const SizedBox(height: 10),
             if (reminders.isEmpty) const EmptyState(text: 'Os lembretes aparecem depois da avaliacao.'),
             ...reminders.map((item) {
               final reminder = item as Map<String, dynamic>;
@@ -902,36 +1041,272 @@ class DataScaffold extends StatelessWidget {
 }
 
 class ProfileSummary extends StatelessWidget {
-  const ProfileSummary({super.key, required this.summary});
+  const ProfileSummary({
+    super.key,
+    required this.summary,
+    this.latest,
+    this.explanation,
+  });
 
   final Map<String, dynamic> summary;
+  final Map<String, dynamic>? latest;
+  final Map<String, dynamic>? explanation;
 
   @override
   Widget build(BuildContext context) {
+    final classification = latest?['classification'] as Map<String, dynamic>?;
+    final confidence = (explanation?['confidence'] as num?) ?? classification?['confidence'] as num?;
+    final modelVersion = explanation?['modelVersion']?.toString() ?? classification?['modelVersion']?.toString();
+    final fromMl = isMlModel(modelVersion);
+
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: panelDecoration(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.health_and_safety),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      profileLabel(summary['profile']?.toString()),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Text('${summary['profileScore'] ?? 0}/100'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: ((summary['profileScore'] as num?)?.toDouble() ?? 0) / 100),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(
+                    avatar: const Icon(Icons.groups, size: 18),
+                    label: Text(summary['clusterLabel']?.toString() ?? 'Cluster em analise'),
+                  ),
+                  if (modelVersion != null && !fromMl)
+                    Chip(
+                      avatar: const Icon(Icons.rule, size: 18),
+                      label: Text(modelLabel(modelVersion)),
+                    ),
+                  if (confidence != null)
+                    Chip(
+                      avatar: const Icon(Icons.verified_outlined, size: 18),
+                      label: Text('${(confidence.toDouble() * 100).round()}% confianca'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (fromMl) const MlMarker(),
+      ],
+    );
+  }
+}
+
+class MlMarker extends StatelessWidget {
+  const MlMarker({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 10,
+      right: 10,
+      child: Tooltip(
+        message: 'Gerado por IA',
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MlStatusPanel extends StatelessWidget {
+  const MlStatusPanel({super.key, required this.health});
+
+  final Map<String, dynamic> health;
+
+  @override
+  Widget build(BuildContext context) {
+    final ml = health['ml'] as Map<String, dynamic>?;
+    final available = ml?['available'] == true;
+    final color = available ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.secondary;
+
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: panelDecoration(context),
+          child: Row(
+            children: [
+              Icon(available ? Icons.smart_toy : Icons.rule, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      available ? 'IA conectada' : 'Classificacao por regras',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      available
+                          ? 'As avaliacoes usam o modelo de Machine Learning.'
+                          : 'A API esta online, mas a IA nao respondeu agora.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (available) const MlMarker(),
+      ],
+    );
+  }
+}
+
+class AiExplanationPanel extends StatelessWidget {
+  const AiExplanationPanel({super.key, required this.data});
+
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final explanation = data['explanation'] as Map<String, dynamic>;
+    final messages = ((explanation['messages'] as List?) ?? []).map((item) => item.toString()).toList();
+    final factors = ((explanation['factors'] as List?) ?? []).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+    final geminiSummary = explanation['geminiSummary']?.toString();
+    final fromMl = isMlModel(data['modelVersion']?.toString() ?? explanation['modelVersion']?.toString());
+
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: panelDecoration(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.tertiary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Explicacao da IA',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (geminiSummary != null && geminiSummary.isNotEmpty)
+                Text(geminiSummary)
+              else
+                ...messages.take(2).map((message) => Text(message)),
+              if (factors.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...factors.take(4).map((factor) => FactorTile(factor: factor)),
+              ],
+            ],
+          ),
+        ),
+        if (fromMl) const MlMarker(),
+      ],
+    );
+  }
+}
+class FactorTile extends StatelessWidget {
+  const FactorTile({super.key, required this.factor});
+
+  final Map<String, dynamic> factor;
+
+  @override
+  Widget build(BuildContext context) {
+    final impact = factor['impact']?.toString() ?? 'neutral';
+    final color = impactColor(context, impact);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(impactIcon(impact), size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(factor['detail']?.toString() ?? factor['factor']?.toString() ?? 'Fator analisado')),
+        ],
+      ),
+    );
+  }
+}
+
+class ClusterStatsPanel extends StatelessWidget {
+  const ClusterStatsPanel({super.key, required this.stats});
+
+  final Map<String, dynamic> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final comparison = stats['userComparison'] as Map<String, dynamic>?;
+    if (comparison == null) return const SizedBox.shrink();
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: panelDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.health_and_safety),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  profileLabel(summary['profile']?.toString()),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ),
-              Text('${summary['profileScore'] ?? 0}/100'),
-            ],
+          Text(
+            'Comparativo do seu grupo',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: ((summary['profileScore'] as num?)?.toDouble() ?? 0) / 100),
           const SizedBox(height: 10),
-          Text(summary['clusterLabel']?.toString() ?? 'Cluster em analise'),
-          ...(((summary['explanation'] as List?) ?? []).take(2).map((item) => Text('• $item'))),
+          ComparisonRow(label: 'Passos', item: comparison['dailySteps'], suffix: ''),
+          ComparisonRow(label: 'Sono', item: comparison['hoursOfSleep'], suffix: 'h'),
+          ComparisonRow(label: 'Exercicio', item: comparison['exerciseHoursPerWeek'], suffix: 'h/sem'),
+          ComparisonRow(label: 'IMC', item: comparison['bmi'], suffix: ''),
+        ],
+      ),
+    );
+  }
+}
+
+class ComparisonRow extends StatelessWidget {
+  const ComparisonRow({super.key, required this.label, required this.item, required this.suffix});
+
+  final String label;
+  final Object? item;
+  final String suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = item is Map ? Map<String, dynamic>.from(item as Map) : <String, dynamic>{};
+    final yours = data['yours'];
+    final avg = data['clusterAvg'];
+    if (yours == null || avg == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          Text('Voce: ${formatMetric(yours)}$suffix'),
+          const SizedBox(width: 10),
+          Text('Grupo: ${formatMetric(avg)}$suffix'),
         ],
       ),
     );
@@ -1055,11 +1430,228 @@ class PlanPanel extends StatelessWidget {
   }
 }
 
+class MealPlanPanel extends StatelessWidget {
+  const MealPlanPanel({super.key, required this.data});
+
+  final Object? data;
+
+  @override
+  Widget build(BuildContext context) {
+    final meals = mapList(data);
+    if (meals.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle('Plano alimentar'),
+        ...meals.map((meal) => MealCard(meal: meal)),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class MealCard extends StatelessWidget {
+  const MealCard({super.key, required this.meal});
+
+  final Map<String, dynamic> meal;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = meal['mealType']?.toString() ?? 'meal';
+    final color = _mealColor(context, type);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: panelDecoration(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(height: 5, color: color),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(_mealIcon(type), color: color),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              mealLabel(type),
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            Text(
+                              meal['title']?.toString() ?? 'Refeicao',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(meal['description']?.toString() ?? ''),
+                  if (meal['tip'] != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.lightbulb_outline, size: 18, color: Theme.of(context).colorScheme.secondary),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(meal['tip'].toString())),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class WeeklyRoutinePanel extends StatelessWidget {
+  const WeeklyRoutinePanel({super.key, required this.data});
+
+  final Object? data;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = mapList(data);
+    if (days.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        const SectionTitle('Rotina semanal'),
+        ...days.map((day) => DayRoutineCard(day: day)),
+      ],
+    );
+  }
+}
+
+class DayRoutineCard extends StatelessWidget {
+  const DayRoutineCard({super.key, required this.day});
+
+  final Map<String, dynamic> day;
+
+  @override
+  Widget build(BuildContext context) {
+    final dayName = day['day']?.toString() ?? 'Dia';
+    final focus = day['focus']?.toString() ?? 'Rotina';
+    final activities = ((day['activities'] as List?) ?? []).map((item) => item.toString()).toList();
+    final color = _dayColor(context, dayName);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: panelDecoration(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              color: color.withValues(alpha: 0.14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(_focusIcon(focus), color: color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          dayName,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          focus,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Badge(label: Text('${activities.length}')),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                children: activities
+                    .map(
+                      (activity) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 19,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(activity)),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.text, {super.key, this.trailing});
+  const SectionTitle(this.text, {super.key, this.trailing, this.action});
 
   final String text;
   final String? trailing;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -1071,6 +1663,10 @@ class SectionTitle extends StatelessWidget {
             child: Text(text, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           ),
           if (trailing != null) Badge(label: Text(trailing!)),
+          if (action != null) ...[
+            const SizedBox(width: 8),
+            action!,
+          ],
         ],
       ),
     );
@@ -1191,6 +1787,109 @@ String profileLabel(String? profile) {
   };
 }
 
+String modelLabel(String modelVersion) {
+  if (modelVersion.toLowerCase().startsWith('ml')) return 'Modelo IA $modelVersion';
+  if (modelVersion == 'rules-v1') return 'Regras locais';
+  return modelVersion;
+}
+
+bool isMlModel(String? modelVersion) {
+  return modelVersion != null && modelVersion.toLowerCase().startsWith('ml');
+}
+
+Color impactColor(BuildContext context, String impact) {
+  return switch (impact) {
+    'positive' => Theme.of(context).colorScheme.primary,
+    'negative' => Theme.of(context).colorScheme.error,
+    _ => Theme.of(context).colorScheme.secondary,
+  };
+}
+
+IconData impactIcon(String impact) {
+  return switch (impact) {
+    'positive' => Icons.trending_up,
+    'negative' => Icons.warning_amber,
+    _ => Icons.remove_circle_outline,
+  };
+}
+
+String formatMetric(Object? value) {
+  if (value is num) {
+    final rounded = value.toDouble();
+    if (rounded == rounded.roundToDouble()) return rounded.round().toString();
+    return rounded.toStringAsFixed(1);
+  }
+  return value?.toString() ?? '-';
+}
+
+List<Map<String, dynamic>> mapList(Object? value) {
+  if (value is List) {
+    return value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+  if (value is Map) {
+    return value.values.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+  return const [];
+}
+
+String mealLabel(String type) {
+  return switch (type) {
+    'breakfast' => 'Cafe da manha',
+    'lunch' => 'Almoco',
+    'dinner' => 'Jantar',
+    'snack' => 'Lanche',
+    _ => 'Refeicao',
+  };
+}
+
+IconData _mealIcon(String type) {
+  return switch (type) {
+    'breakfast' => Icons.free_breakfast,
+    'lunch' => Icons.lunch_dining,
+    'dinner' => Icons.dinner_dining,
+    'snack' => Icons.local_cafe,
+    _ => Icons.restaurant,
+  };
+}
+
+Color _mealColor(BuildContext context, String type) {
+  final scheme = Theme.of(context).colorScheme;
+  return switch (type) {
+    'breakfast' => const Color(0xFFE0962D),
+    'lunch' => scheme.primary,
+    'dinner' => scheme.tertiary,
+    'snack' => const Color(0xFFB05A8C),
+    _ => scheme.secondary,
+  };
+}
+
+IconData _focusIcon(String focus) {
+  final value = focus.toLowerCase();
+  if (value.contains('forca') || value.contains('treino')) return Icons.fitness_center;
+  if (value.contains('cardio') || value.contains('caminhada') || value.contains('movimento')) {
+    return Icons.directions_walk;
+  }
+  if (value.contains('alimentacao') || value.contains('nutricional')) return Icons.restaurant;
+  if (value.contains('sono') || value.contains('descanso') || value.contains('recuperacao')) return Icons.bedtime;
+  if (value.contains('planejamento') || value.contains('rotina')) return Icons.event_note;
+  if (value.contains('hidratacao')) return Icons.water_drop;
+  return Icons.spa;
+}
+
+Color _dayColor(BuildContext context, String dayName) {
+  final scheme = Theme.of(context).colorScheme;
+  return switch (dayName.toLowerCase()) {
+    'segunda' => scheme.primary,
+    'terca' || 'terça' => scheme.tertiary,
+    'quarta' => scheme.secondary,
+    'quinta' => const Color(0xFF2F8C7D),
+    'sexta' => const Color(0xFF7A6AC7),
+    'sabado' || 'sábado' => const Color(0xFFB05A2A),
+    'domingo' => const Color(0xFF58708F),
+    _ => scheme.primary,
+  };
+}
+
 String _pretty(Object? value) {
   if (value is Map) {
     return value.entries.map((entry) => '${entry.key}: ${_pretty(entry.value)}').join('\n');
@@ -1199,16 +1898,96 @@ String _pretty(Object? value) {
   return value?.toString() ?? '';
 }
 
+String _fallbackMessage(int statusCode) {
+  return switch (statusCode) {
+    400 => 'Dados invalidos',
+    401 => 'E-mail ou senha incorretos',
+    403 => 'Voce nao tem permissao para esta acao',
+    404 => 'Registro nao encontrado',
+    409 => 'Ja existe um cadastro com esses dados',
+    500 => 'Erro interno do servidor',
+    _ => 'Erro $statusCode',
+  };
+}
+
+String? _detailsMessage(Object? details) {
+  if (details == null) return null;
+  if (details is String && details.trim().isNotEmpty) return details;
+  if (details is List) {
+    final values = details.map((item) => item.toString()).where((item) => item.trim().isNotEmpty).toList();
+    return values.isEmpty ? null : values.join(', ');
+  }
+  if (details is Map) {
+    final messages = <String>[];
+    details.forEach((key, value) {
+      if (value is List && value.isNotEmpty) {
+        messages.add('${_fieldLabel(key.toString())}: ${value.join(', ')}');
+      } else if (value != null && value.toString().trim().isNotEmpty) {
+        messages.add('${_fieldLabel(key.toString())}: $value');
+      }
+    });
+    return messages.isEmpty ? null : messages.join('\n');
+  }
+  return details.toString();
+}
+
+String _fieldLabel(String field) {
+  return switch (field) {
+    'name' => 'Nome',
+    'email' => 'E-mail',
+    'password' => 'Senha',
+    'currentPassword' => 'Senha atual',
+    'newPassword' => 'Nova senha',
+    _ => field,
+  };
+}
+
+Object _authErrorMessage(Object error, {required bool isRegister}) {
+  if (error is! ApiException) return error;
+  if (!isRegister && error.statusCode == 401) {
+    return ApiException('E-mail ou senha incorretos. Confira os dados e tente novamente.');
+  }
+  if (isRegister && error.statusCode == 409) {
+    return ApiException('Este e-mail ja esta cadastrado. Entre com sua conta ou use outro e-mail.');
+  }
+  if (error.statusCode == 400) {
+    return ApiException(error.message.replaceFirst('Dados invalidos: ', 'Verifique os campos:\n'));
+  }
+  return error;
+}
+
 void _showResult(BuildContext context, Map<String, dynamic> result) {
   final plan = result['plan'] as Map<String, dynamic>?;
+  final classification = result['classification'] as Map<String, dynamic>?;
+  final explanation = result['explanation'] as Map<String, dynamic>?;
+  final messages = ((explanation?['messages'] as List?) ?? []).map((item) => item.toString()).toList();
+  final confidence = classification?['confidence'] as num?;
+  final modelVersion = classification?['modelVersion']?.toString() ?? explanation?['modelVersion']?.toString();
+
   showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Perfil gerado'),
-      content: Text(
-        '${profileLabel(plan?['profile']?.toString())}\n'
-        'Score: ${plan?['profileScore'] ?? '-'}\n'
-        '${plan?['clusterLabel'] ?? ''}',
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              profileLabel(plan?['profile']?.toString()),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text('Score: ${plan?['profileScore'] ?? '-'}/100'),
+            Text(plan?['clusterLabel']?.toString() ?? 'Cluster em analise'),
+            if (modelVersion != null) Text(modelLabel(modelVersion)),
+            if (confidence != null) Text('Confianca: ${(confidence.toDouble() * 100).round()}%'),
+            if (messages.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(messages.first),
+            ],
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
@@ -1219,6 +1998,10 @@ void _showResult(BuildContext context, Map<String, dynamic> result) {
 
 void _showError(BuildContext context, Object error) {
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(error is ApiException ? error.message : error.toString())),
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      showCloseIcon: true,
+      content: Text(error is ApiException ? error.message : error.toString()),
+    ),
   );
 }
