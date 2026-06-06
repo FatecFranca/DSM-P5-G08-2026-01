@@ -1,0 +1,80 @@
+{
+  "modelVersion": "ml-v1.0",
+  "accuracy": 0.785,
+  "silhouetteScore": 0.1905,
+  "trainSamples": 800,
+  "testSamples": 200,
+  "classificationReport": {
+    "0": {
+      "precision": 0.8235294117647058,
+      "recall": 0.7567567567567568,
+      "f1-score": 0.7887323943661971,
+      "support": 37.0
+    },
+    "1": {
+      "precision": 0.3333333333333333,
+      "recall": 0.09090909090909091,
+      "f1-score": 0.14285714285714285,
+      "support": 11.0
+    },
+    "2": {
+      "precision": 0.7724137931034483,
+      "recall": 0.9256198347107438,
+      "f1-score": 0.8421052631578947,
+      "support": 121.0
+    },
+    "3": {
+      "precision": 0.8888888888888888,
+      "recall": 0.5161290322580645,
+      "f1-score": 0.6530612244897959,
+      "support": 31.0
+    },
+    "accuracy": 0.785,
+    "macro avg": {
+      "precision": 0.704541356772594,
+      "recall": 0.572353678658664,
+      "f1-score": 0.6066890062177577,
+      "support": 200.0
+    },
+    "weighted avg": {
+      "precision": 0.7757743971151679,
+      "recall": 0.785,
+      "f1-score": 0.764470809821334,
+      "support": 200.0
+    }
+  },
+  "rawBounds": {
+    "Age": [
+      18.0,
+      75.0
+    ],
+    "BMI": [
+      12.753800632588511,
+      51.50623268698061
+    ],
+    "Daily_Steps": [
+      1000.0,
+      15000.0
+    ],
+    "Hours_of_Sleep": [
+      3.0,
+      10.0
+    ],
+    "Exercise_Hours_per_Week": [
+      0.0,
+      10.0
+    ],
+    "Heart_Rate": [
+      50.0,
+      110.0
+    ],
+    "Calories_Intake": [
+      1200.0,
+      4000.0
+    ],
+    "Alcohol_Consumption_per_Week": [
+      0.0,
+      10.0
+    ]
+  }
+}

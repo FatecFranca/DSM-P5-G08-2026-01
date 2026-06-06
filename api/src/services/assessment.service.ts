@@ -14,6 +14,8 @@ import { AppError } from "../utils/app-error";
 import { AssessmentInput } from "../schemas";
 import { calculateBmi, classificationService, parseExplanation } from "./classification.service";
 import { achievementService } from "./achievement.service";
+import { geminiService } from "./gemini.service";
+import { userRepository } from "../repositories/user.repository";
 
 function computeLevel(points: number): number {
   return Math.floor(points / GAMIFICATION.POINTS_PER_LEVEL) + 1;
@@ -235,6 +237,22 @@ export const assessmentService = {
     const isFirstAssessment = previousCount === 0;
 
     const classification = await classificationService.classify(input);
+
+    if (geminiService.isEnabled()) {
+      const user = await userRepository.findById(userId);
+      const geminiText = await geminiService.enrichExplanation({
+        profile: classification.profile,
+        profileScore: classification.profileScore,
+        confidence: classification.confidence,
+        modelVersion: classification.modelVersion,
+        factors: classification.explanationPayload.factors,
+        userName: user?.name,
+      });
+      if (geminiText) {
+        classification.explanationPayload.geminiSummary = geminiText;
+        classification.explanationPayload.messages = [geminiText, ...classification.explanationPayload.messages];
+      }
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const assessment = await tx.healthAssessment.create({

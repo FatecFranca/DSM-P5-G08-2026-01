@@ -16,6 +16,8 @@ export interface ExplanationFactor {
 export interface ExplanationPayload {
   messages: string[];
   factors: ExplanationFactor[];
+  geminiSummary?: string;
+  modelVersion?: string;
 }
 
 interface RuleInput {
@@ -165,7 +167,11 @@ export function calculateBmi(heightCm: number, weightKg: number): number {
   return Number((weightKg / (heightM * heightM)).toFixed(2));
 }
 
-async function callMlService(input: HealthAssessmentInput, bmi: number): Promise<ClassificationResult | null> {
+interface MlPredictResponse extends ClassificationResult {
+  modelVersion?: string;
+}
+
+async function callMlService(input: HealthAssessmentInput, bmi: number): Promise<MlPredictResponse | null> {
   if (!env.ML_SERVICE_URL) return null;
 
   const controller = new AbortController();
@@ -179,9 +185,13 @@ async function callMlService(input: HealthAssessmentInput, bmi: number): Promise
       signal: controller.signal,
     });
 
-    if (!response.ok) return null;
-    return (await response.json()) as ClassificationResult;
-  } catch {
+    if (!response.ok) {
+      console.warn(`[ml] Resposta ${response.status} de ${env.ML_SERVICE_URL}/predict`);
+      return null;
+    }
+    return (await response.json()) as MlPredictResponse;
+  } catch (error) {
+    console.warn("[ml] Servico indisponivel, usando fallback rules-v1:", error);
     return null;
   } finally {
     clearTimeout(timeout);
@@ -223,8 +233,11 @@ export const classificationService = {
       return {
         ...mlResult,
         explanation: mlResult.explanation ?? fallback.explanation.messages,
-        modelVersion: "ml-service",
-        explanationPayload: fallback.explanation,
+        modelVersion: mlResult.modelVersion ?? "ml-v1.0",
+        explanationPayload: {
+          ...fallback.explanation,
+          modelVersion: mlResult.modelVersion ?? "ml-v1.0",
+        },
         confidence: mlResult.confidence ?? 0.85,
       };
     }

@@ -1,0 +1,86 @@
+paths:
+  /health:
+    get:
+      summary: Status da API
+      tags: [Health]
+      responses:
+        "200":
+          description: OK
+  /health/ready:
+    get:
+      summary: Readiness (DB + ML)
+      tags: [Health]
+      responses:
+        "200":
+          description: Pronto
+        "503":
+          description: Indisponivel
+  /auth/register:
+    post:
+      summary: Cadastro de usuario
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201":
+          description: Usuario criado
+  /auth/login:
+    post:
+      summary: Login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Tokens JWT
+  /assessments:
+    post:
+      summary: Enviar questionario e classificar perfil (ML + Gemini opcional)
+      tags: [Assessments]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                age: { type: integer }
+                gender: { type: string, enum: [Male, Female] }
+                heightCm: { type: number }
+                weightKg: { type: number }
+                dailySteps: { type: integer }
+                caloriesIntake: { type: integer }
+                hoursOfSleep: { type: number }
+                exerciseHoursPerWeek: { type: number }
+                smoker: { type: string, enum: [Yes, No] }
+                alcoholPerWeek: { type: integer }
+                diabetic: { type: string, enum: [Yes, No] }
+                heartDisease: { type: string, enum: [Yes, No] }
+      responses:
+        "201":
+          description: Avaliacao classificada
+  /dashboard:
+    get:
+      summary: Dashboard agregado do usuario
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []

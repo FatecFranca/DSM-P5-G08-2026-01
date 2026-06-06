@@ -19,10 +19,19 @@ vitalis/
 ## Fluxo
 
 ```
-Mobile (questionario) → API Node → AI Python (classificacao)
-                              ↓
-                    Recomendacoes + Lembretes + Gamificacao
+Mobile (questionario) → API Node → AI Python (classificacao + cluster)
+                              ↓              ↓ (opcional)
+                    Recomendacoes      Gemini (texto natural)
+                    Lembretes + Gamificacao
 ```
+
+## Documentacao IA/ML
+
+Plano completo (treino, API, Gemini, entregaveis AM): [docs/PLANO-IA-ML.md](../docs/PLANO-IA-ML.md)
+
+**Roadmap por etapas (back + IA 100%):** [docs/PLANO-EXECUCAO.md](../docs/PLANO-EXECUCAO.md)
+
+**Credenciais e API keys:** [docs/CREDENCIAIS.md](../docs/CREDENCIAIS.md)
 
 ## Como rodar
 

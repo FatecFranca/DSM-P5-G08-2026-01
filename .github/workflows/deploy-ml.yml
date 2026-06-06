@@ -1,0 +1,32 @@
+name: Deploy ML Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ai/**"
+      - ".github/workflows/deploy-ml.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Train models
+        run: |
+          pip install -r ai/requirements.txt
+          cd ai/src && python train.py && python evaluate.py
+
+      - name: Deploy to Azure App Service
+        if: ${{ secrets.AZURE_ML_PUBLISH_PROFILE != '' }}
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: vitalis-ml
+          publish-profile: ${{ secrets.AZURE_ML_PUBLISH_PROFILE }}
+          package: ai

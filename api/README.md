@@ -31,14 +31,32 @@ Backend REST com arquitetura em camadas.
 
 Admin: header `X-Admin-Key` ou JWT com role `ADMIN`.
 
+Documentacao interativa: `GET /docs` (Swagger).
+
 ## Desenvolvimento
 
+Banco local (pgAdmin ou Docker): veja [docs/BANCO-LOCAL.md](../docs/BANCO-LOCAL.md).
+
 ```bash
-pnpm db:up
-pnpm --filter @vitalis/api exec prisma db push
+cp .env.example .env   # ajuste DATABASE_URL
+
+# primeira vez — migration versionada (recomendado)
+pnpm --filter @vitalis/api exec prisma migrate dev --name init
 pnpm db:seed
+
 pnpm api:dev
 ```
+
+## ML + Gemini
+
+```env
+ML_SERVICE_URL=http://localhost:8000
+GEMINI_ENABLED=false   # true + GEMINI_API_KEY para texto Gemini
+```
+
+Credenciais: [docs/CREDENCIAIS.md](../docs/CREDENCIAIS.md)
+
+Teste E2E: `powershell -File scripts/test-e2e.ps1`
 
 ## Azure
 

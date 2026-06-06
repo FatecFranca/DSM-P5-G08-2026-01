@@ -1,7 +1,9 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import swaggerUi from "swagger-ui-express";
 import { getCorsOrigins } from "./config/env";
+import { swaggerSpec } from "./config/swagger";
 import { errorHandler } from "./middleware/error-handler";
 import { requestLogger } from "./middleware/request-logger";
 import { authRouter } from "./routes/auth.routes";
@@ -24,6 +26,8 @@ export function createApp() {
   app.use(cors({ origin: getCorsOrigins() }));
   app.use(express.json({ limit: "1mb" }));
   app.use(requestLogger);
+
+  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   app.use("/health", healthRouter);
   app.use("/auth", authRouter);

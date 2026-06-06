@@ -18,6 +18,12 @@ const envSchema = z.object({
   ML_SERVICE_TIMEOUT_MS: z.coerce.number().default(5000),
   CORS_ORIGINS: z.string().default("*"),
   ADMIN_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.0-flash"),
+  GEMINI_ENABLED: z
+    .string()
+    .default("false")
+    .transform((v) => ["true", "1", "yes"].includes(v.toLowerCase())),
 });
 
 export const env = envSchema.parse(process.env);
@@ -25,4 +31,8 @@ export const env = envSchema.parse(process.env);
 export function getCorsOrigins(): string | string[] {
   if (env.CORS_ORIGINS === "*") return "*";
   return env.CORS_ORIGINS.split(",").map((o) => o.trim());
+}
+
+export function isGeminiActive(): boolean {
+  return env.GEMINI_ENABLED && Boolean(env.GEMINI_API_KEY);
 }
