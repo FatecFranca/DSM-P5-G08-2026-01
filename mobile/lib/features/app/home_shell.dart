@@ -25,16 +25,30 @@ class _HomeShellState extends State<HomeShell> {
         (data['reminders'] as List?) ?? [],
       );
     } catch (_) {
-      // Notificacoes sao conveniencia local; a API continua sendo a fonte principal.
+      // Notificações locais são conveniência; a API é a fonte principal.
     }
+  }
+
+  void _openAssessment() {
+    final api = ApiClient(widget.session);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => AssessmentPage(
+          api: api,
+          onDone: () {
+            Navigator.of(context).pop();
+            setState(() => _tab = 0);
+          },
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final api = ApiClient(widget.session);
     final pages = [
-      DashboardPage(api: api),
-      AssessmentPage(api: api, onDone: () => setState(() => _tab = 0)),
+      DashboardPage(api: api, onStartAssessment: _openAssessment),
       RecommendationsPage(api: api),
       RemindersPage(api: api),
       ProfilePage(session: widget.session, api: api),
@@ -44,6 +58,11 @@ class _HomeShellState extends State<HomeShell> {
       appBar: AppBar(
         title: const Text('Vitalis'),
         actions: [
+          IconButton(
+            tooltip: 'Nova avaliação',
+            onPressed: _openAssessment,
+            icon: const Icon(Icons.assignment_outlined),
+          ),
           IconButton(
             tooltip: 'Sair',
             onPressed: widget.session.clear,
@@ -59,17 +78,12 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            label: 'Início',
           ),
           NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'Avaliacao',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.tips_and_updates_outlined),
-            selectedIcon: Icon(Icons.tips_and_updates),
-            label: 'Planos',
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book),
+            label: 'Plano',
           ),
           NavigationDestination(
             icon: Icon(Icons.notifications_outlined),
@@ -77,8 +91,8 @@ class _HomeShellState extends State<HomeShell> {
             label: 'Lembretes',
           ),
           NavigationDestination(
-            icon: Icon(Icons.emoji_events_outlined),
-            selectedIcon: Icon(Icons.emoji_events),
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
             label: 'Perfil',
           ),
         ],

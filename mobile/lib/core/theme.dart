@@ -2,10 +2,15 @@ part of '../main.dart';
 
 final appThemeMode = ValueNotifier<ThemeMode>(ThemeMode.light);
 
+/// URL padrao da API. VM Azure de producao do PI; sobrescreva com --dart-define=API_URL=...
 const defaultApiUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://localhost:3333',
+  defaultValue: 'http://4.229.233.225:3333',
 );
+
+/// URLs comuns para desenvolvimento local (ver mobile/README.md).
+const localApiUrl = 'http://localhost:3333';
+const androidEmulatorApiUrl = 'http://10.0.2.2:3333';
 
 const teal600 = Color(0xFF0D9488);
 const teal400 = Color(0xFF2DD4BF);

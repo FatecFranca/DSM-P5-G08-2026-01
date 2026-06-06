@@ -1,17 +1,17 @@
 # Vitalis
 
-Sistema de analise de perfil de saude e recomendacao de habitos com Machine Learning.
+Sistema de análise de perfil de saúde e recomendação de hábitos com Machine Learning.
 
-**PI · FATEC Franca · DSM 5º semestre · Aprendizagem de Maquina**
+**PI · FATEC Franca · DSM 5º semestre · Aprendizagem de Máquina**
 
 ## Estrutura do monorepo
 
 ```
 vitalis/
 ├── api/          # Backend Node.js + PostgreSQL (REST)
-├── mobile/       # App React Native (principal)
-├── ai/           # Python ML (classificacao + clusterizacao)
-├── web/          # Landing page + admin basico (Next.js)
+├── mobile/       # App Flutter (iOS + Android)
+├── ai/           # Python ML (classificação + clusterização)
+├── web/          # Landing page + admin básico (Next.js)
 └── packages/
     └── shared/   # Tipos TypeScript compartilhados
 ```
@@ -19,21 +19,24 @@ vitalis/
 ## Fluxo
 
 ```
-Mobile (questionario) → API Node → AI Python (classificacao + cluster)
+Mobile (questionário) → API Node → AI Python (classificação + cluster)
                               ↓              ↓ (opcional)
-                    Recomendacoes      Gemini (texto natural)
-                    Lembretes + Gamificacao
+                    Recomendações      Gemini (texto natural)
+                    Lembretes + Gamificação
 ```
 
-## Documentacao IA/ML
+## Documentação
 
-Plano completo (treino, API, Gemini, entregaveis AM): [docs/PLANO-IA-ML.md](../docs/PLANO-IA-ML.md)
+| Doc | Conteúdo |
+|-----|----------|
+| [docs/PLANO-IA-ML.md](docs/PLANO-IA-ML.md) | ML, Gemini, notebooks |
+| [docs/PLANO-EXECUCAO.md](docs/PLANO-EXECUCAO.md) | Roadmap back + IA |
+| [docs/CREDENCIAIS.md](docs/CREDENCIAIS.md) | Variáveis e chaves |
+| [docs/HOSPEDAGEM-VM.md](docs/HOSPEDAGEM-VM.md) | Deploy na VM Azure |
+| [docs/AUDITORIA-COMPLETA.md](docs/AUDITORIA-COMPLETA.md) | Auditoria e plano de correções |
+| [mobile/README.md](mobile/README.md) | App Flutter |
 
-**Roadmap por etapas (back + IA 100%):** [docs/PLANO-EXECUCAO.md](../docs/PLANO-EXECUCAO.md)
-
-**Credenciais e API keys:** [docs/CREDENCIAIS.md](../docs/CREDENCIAIS.md)
-
-## Como rodar
+## Como rodar (local)
 
 ```bash
 pnpm install
@@ -47,22 +50,34 @@ pnpm db:seed
 # Backend
 pnpm api:dev          # :3333
 
-# Web (landing)
-pnpm web:dev          # :3000
+# ML
+cd ai && python -m venv .venv && .venv/Scripts/activate  # Windows
+pip install -r requirements.txt
+python src/train.py
+uvicorn src.serve:app --reload --port 8000
 
-# ML (quando treinado)
-cd ai && uvicorn src.serve:app --reload --port 8000
+# Mobile (VM ou local)
+cd mobile
+flutter pub get
+flutter run --dart-define=API_URL=http://10.0.2.2:3333   # emulador Android
+# flutter run --dart-define=API_URL=http://4.229.233.225:3333  # VM produção
 ```
+
+## Produção (VM Azure)
+
+- **API:** `http://4.229.233.225:3333`
+- **Health:** `http://4.229.233.225:3333/health/ready`
+- **Deploy:** `bash scripts/deploy-vm.sh` (na VM)
 
 ## Classes de perfil
 
-| Classe | Descricao |
+| Classe | Descrição |
 |--------|-----------|
-| Saudavel_Ativo | Bons habitos, ativo |
-| Moderado | Habitos intermediarios |
+| Saudavel_Ativo | Bons hábitos, ativo |
+| Moderado | Hábitos intermediários |
 | Sedentario | Baixa atividade |
-| Em_Risco | Combinacao de fatores de risco |
+| Em_Risco | Combinação de fatores de risco |
 
 ## Disclaimer
 
-Nao realiza diagnostico medico. Apenas classificacao de perfil comportamental.
+Não realiza diagnóstico médico. Apenas classificação de perfil comportamental.

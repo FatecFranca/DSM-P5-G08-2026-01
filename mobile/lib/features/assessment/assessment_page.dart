@@ -66,7 +66,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
       };
       final result = await widget.api.post('/assessments', body);
       if (!mounted) return;
-      _showResult(context, result);
+      await _showResult(context, result);
+      if (!mounted) return;
       widget.onDone();
     } catch (error) {
       _showError(context, error);

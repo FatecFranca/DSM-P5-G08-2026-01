@@ -3,16 +3,17 @@ RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY api/package.json ./api/
+COPY api/prisma ./api/prisma/
 COPY packages/shared/package.json ./packages/shared/
 RUN pnpm install --frozen-lockfile
+RUN cd api && npx prisma generate
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm --filter @vitalis/shared build
-RUN pnpm --filter @vitalis/api exec prisma generate
 RUN pnpm --filter @vitalis/api build
 
 FROM node:20-alpine AS runner

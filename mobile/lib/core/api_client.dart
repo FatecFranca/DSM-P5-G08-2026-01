@@ -7,33 +7,62 @@ class ApiClient {
 
   Uri _uri(String path) => Uri.parse('${session.apiUrl}$path');
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final response = await http.get(_uri(path), headers: _headers());
-    return _decode(response);
-  }
+  Future<Map<String, dynamic>> get(String path) =>
+      _send((headers) => http.get(_uri(path), headers: headers));
 
   Future<Map<String, dynamic>> post(
     String path,
     Map<String, dynamic> body,
-  ) async {
-    final response = await http.post(
-      _uri(path),
-      headers: _headers(),
-      body: jsonEncode(body),
-    );
-    return _decode(response);
-  }
+  ) =>
+      _send(
+        (headers) => http.post(
+          _uri(path),
+          headers: headers,
+          body: jsonEncode(body),
+        ),
+      );
 
   Future<Map<String, dynamic>> patch(
     String path,
     Map<String, dynamic> body,
-  ) async {
-    final response = await http.patch(
-      _uri(path),
-      headers: _headers(),
-      body: jsonEncode(body),
-    );
+  ) =>
+      _send(
+        (headers) => http.patch(
+          _uri(path),
+          headers: headers,
+          body: jsonEncode(body),
+        ),
+      );
+
+  Future<Map<String, dynamic>> _send(
+    Future<http.Response> Function(Map<String, String> headers) request, {
+    bool retried = false,
+  }) async {
+    final response = await request(_headers());
+    if (response.statusCode == 401 &&
+        !retried &&
+        session.refreshToken != null) {
+      final path = response.request?.url.path ?? '';
+      if (!path.endsWith('/auth/refresh') && !path.endsWith('/auth/login')) {
+        try {
+          await _refreshTokens();
+          return _send(request, retried: true);
+        } catch (_) {
+          await session.clear();
+        }
+      }
+    }
     return _decode(response);
+  }
+
+  Future<void> _refreshTokens() async {
+    final response = await http.post(
+      _uri('/auth/refresh'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'refreshToken': session.refreshToken}),
+    );
+    final data = _decode(response);
+    await session.saveAuth(data);
   }
 
   Map<String, String> _headers() {

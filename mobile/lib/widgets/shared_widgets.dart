@@ -21,24 +21,11 @@ class DataScaffold extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.cloud_off, size: 44),
-                  const SizedBox(height: 12),
-                  Text(snapshot.error.toString(), textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: onRefresh,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Tentar novamente'),
-                  ),
-                ],
-              ),
+          return ConnectionErrorPanel(
+            message: friendlyErrorMessage(
+              snapshot.error ?? 'Erro desconhecido',
             ),
+            onRetry: onRefresh,
           );
         }
         return builder(snapshot.data ?? {});
@@ -394,35 +381,48 @@ class InfoPanel extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
   final String title;
   final String body;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: panelDecoration(context),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, size: 34, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+          Row(
+            children: [
+              Icon(icon, size: 34, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    if (body.isNotEmpty) Text(body),
+                  ],
                 ),
-                if (body.isNotEmpty) Text(body),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
         ],
       ),
     );

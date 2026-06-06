@@ -1,9 +1,14 @@
 part of '../../main.dart';
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, required this.api});
+  const DashboardPage({
+    super.key,
+    required this.api,
+    required this.onStartAssessment,
+  });
 
   final ApiClient api;
+  final VoidCallback onStartAssessment;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -65,9 +70,11 @@ class _DashboardPageState extends State<DashboardPage> {
             if (summary == null)
               InfoPanel(
                 icon: Icons.assignment_add,
-                title: 'Faca sua primeira avaliacao',
+                title: 'Faça sua primeira avaliação',
                 body:
-                    'Preencha o questionario para gerar perfil, recomendacoes e lembretes.',
+                    'Preencha o questionário para gerar perfil, recomendações e lembretes.',
+                actionLabel: 'Começar avaliação',
+                onAction: widget.onStartAssessment,
               )
             else
               ProfileSummary(

@@ -1,0 +1,12 @@
+**/node_modules
+**/.venv
+**/dist
+**/.next
+**/.turbo
+**/build
+.git
+mobile
+web
+*.pdf
+ai/reports
+ai/notebooks

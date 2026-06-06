@@ -221,27 +221,75 @@ String _fieldLabel(String field) {
   };
 }
 
-Object _authErrorMessage(Object error, {required bool isRegister}) {
-  if (error is! ApiException) return error;
-  if (!isRegister && error.statusCode == 401) {
-    return ApiException(
-      'E-mail ou senha incorretos. Confira os dados e tente novamente.',
-    );
+String friendlyErrorMessage(Object error, {bool? isRegister}) {
+  if (error is ApiException) {
+    if (isRegister == false && error.statusCode == 401) {
+      return 'E-mail ou senha incorretos. Confira os dados e tente novamente.';
+    }
+    if (isRegister == true && error.statusCode == 409) {
+      return 'Este e-mail já está cadastrado. Entre com sua conta ou use outro e-mail.';
+    }
+    if (error.statusCode == 400) {
+      return error.message.replaceFirst('Dados invalidos: ', 'Verifique os campos:\n');
+    }
+    return error.message;
   }
-  if (isRegister && error.statusCode == 409) {
-    return ApiException(
-      'Este e-mail ja esta cadastrado. Entre com sua conta ou use outro e-mail.',
-    );
+  final text = error.toString().toLowerCase();
+  if (text.contains('socket') ||
+      text.contains('connection') ||
+      text.contains('failed host lookup') ||
+      text.contains('network')) {
+    return 'Sem conexão com a API. Verifique a URL em Configurar URL da API e sua internet.';
   }
-  if (error.statusCode == 400) {
-    return ApiException(
-      error.message.replaceFirst('Dados invalidos: ', 'Verifique os campos:\n'),
-    );
-  }
-  return error;
+  return error.toString();
 }
 
-void _showResult(BuildContext context, Map<String, dynamic> result) {
+class ConnectionErrorPanel extends StatelessWidget {
+  const ConnectionErrorPanel({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.wifi_off_rounded,
+              size: 52,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Sem conexão',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showResult(BuildContext context, Map<String, dynamic> result) async {
   final plan = result['plan'] as Map<String, dynamic>?;
   final classification = result['classification'] as Map<String, dynamic>?;
   final explanation = result['explanation'] as Map<String, dynamic>?;
@@ -253,7 +301,7 @@ void _showResult(BuildContext context, Map<String, dynamic> result) {
       classification?['modelVersion']?.toString() ??
       explanation?['modelVersion']?.toString();
 
-  showModalBottomSheet<void>(
+  await showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
@@ -306,7 +354,7 @@ void _showError(BuildContext context, Object error) {
     SnackBar(
       behavior: SnackBarBehavior.floating,
       showCloseIcon: true,
-      content: Text(error is ApiException ? error.message : error.toString()),
+      content: Text(friendlyErrorMessage(error)),
     ),
   );
 }
