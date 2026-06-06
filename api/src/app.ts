@@ -18,28 +18,35 @@ import {
   healthRouter,
 } from "./routes/health.routes";
 
+const swaggerUiOptions: swaggerUi.SwaggerUiOptions = {
+  customSiteTitle: "Vitalis API - Swagger",
+  customCss: ".swagger-ui .topbar .download-url-wrapper { display: none }",
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    docExpansion: "list",
+    filter: true,
+  },
+};
+
 export function createApp() {
   const app = express();
 
   app.set("trust proxy", 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Swagger UI usa scripts inline + eval; CSP padrão do Helmet deixa /docs em branco
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
   app.use(cors({ origin: getCorsOrigins() }));
   app.use(express.json({ limit: "1mb" }));
   app.use(requestLogger);
 
-  app.use(
-    "/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec, {
-      customSiteTitle: "Vitalis API — Swagger",
-      swaggerOptions: {
-        persistAuthorization: true,
-        displayRequestDuration: true,
-        docExpansion: "list",
-        filter: true,
-      },
-    }),
-  );
+  app.use("/docs", swaggerUi.serve);
+  app.get("/docs", swaggerUi.setup(swaggerSpec, swaggerUiOptions));
+  app.get("/docs/", swaggerUi.setup(swaggerSpec, swaggerUiOptions));
   app.get("/docs.json", (_req, res) => {
     res.json(swaggerSpec);
   });
