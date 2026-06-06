@@ -125,22 +125,25 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(
-                          value: false,
-                          label: Text('Entrar'),
-                          icon: Icon(Icons.login),
-                        ),
-                        ButtonSegment(
-                          value: true,
-                          label: Text('Cadastrar'),
-                          icon: Icon(Icons.person_add),
-                        ),
-                      ],
-                      selected: {_register},
-                      onSelectionChanged: (value) =>
-                          setState(() => _register = value.first),
+                    Material(
+                      type: MaterialType.transparency,
+                      child: SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(
+                            value: false,
+                            label: Text('Entrar'),
+                            icon: Icon(Icons.login),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            label: Text('Cadastrar'),
+                            icon: Icon(Icons.person_add),
+                          ),
+                        ],
+                        selected: {_register},
+                        onSelectionChanged: (value) =>
+                            setState(() => _register = value.first),
+                      ),
                     ),
                     const SizedBox(height: 18),
                     if (_register)

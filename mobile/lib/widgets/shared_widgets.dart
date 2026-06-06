@@ -365,10 +365,25 @@ class ComparisonRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Expanded(child: Text(label)),
-          Text('Voce: ${formatMetric(yours)}$suffix'),
-          const SizedBox(width: 10),
-          Text('Grupo: ${formatMetric(avg)}$suffix'),
+          Expanded(
+            flex: 2,
+            child: Text(label, overflow: TextOverflow.ellipsis),
+          ),
+          Flexible(
+            child: Text(
+              'Voce: ${formatMetric(yours)}$suffix',
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'Grupo: ${formatMetric(avg)}$suffix',
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+            ),
+          ),
         ],
       ),
     );
@@ -1115,10 +1130,11 @@ class VitalisSlider extends StatelessWidget {
     this.display,
     this.step = 1,
     this.accent,
+    this.errorText,
   });
 
   final String label;
-  final double value;
+  final double? value;
   final double min;
   final double max;
   final String suffix;
@@ -1126,11 +1142,14 @@ class VitalisSlider extends StatelessWidget {
   final double step;
   final Color? accent;
   final ValueChanged<double> onChanged;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
     final color = accent ?? Theme.of(context).colorScheme.primary;
     final divisions = ((max - min) / step).round();
+    final hasValue = value != null;
+    final shownValue = value ?? min;
     return Padding(
       padding: const EdgeInsets.only(bottom: 22),
       child: Column(
@@ -1146,33 +1165,57 @@ class VitalisSlider extends StatelessWidget {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-              Text(
-                display ?? '${formatMetric(value)}$suffix',
-                style: monoStyle(
-                  context,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  display ??
+                      (hasValue
+                          ? '${formatMetric(value!)}$suffix'
+                          : 'Informe'),
+                  style: monoStyle(
+                    context,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ).copyWith(
+                    color: hasValue
+                        ? null
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
                 ),
               ),
             ],
           ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: color,
-              inactiveTrackColor: color.withValues(alpha: 0.08),
-              thumbColor: Colors.white,
-              overlayColor: color.withValues(alpha: 0.12),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11),
-              trackHeight: 6,
-            ),
-            child: Slider(
-              value: value.clamp(min, max),
-              min: min,
-              max: max,
-              divisions: divisions > 0 ? divisions : null,
-              onChanged: onChanged,
+          Material(
+            type: MaterialType.transparency,
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: color,
+                inactiveTrackColor: color.withValues(alpha: 0.08),
+                thumbColor: Colors.white,
+                overlayColor: color.withValues(alpha: 0.12),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 11),
+                trackHeight: 6,
+              ),
+              child: Slider(
+                value: shownValue.clamp(min, max),
+                min: min,
+                max: max,
+                divisions: divisions > 0 ? divisions : null,
+                onChanged: onChanged,
+              ),
             ),
           ),
+          if (errorText != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              errorText!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ],
           Row(
             children: [
               Text(
@@ -1201,17 +1244,21 @@ class StepperField extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.errorText,
   });
 
   final String label;
-  final int value;
+  final int? value;
   final String suffix;
   final int min;
   final int max;
   final ValueChanged<int> onChanged;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
+    final hasValue = value != null;
+    final shownValue = value ?? min;
     return Padding(
       padding: const EdgeInsets.only(bottom: 22),
       child: Column(
@@ -1224,33 +1271,55 @@ class StepperField extends StatelessWidget {
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: panelDecoration(context),
-            child: Row(
-              children: [
-                IconButton.filledTonal(
-                  onPressed: value <= min ? null : () => onChanged(value - 1),
-                  icon: const Icon(Icons.remove),
-                ),
-                Expanded(
-                  child: Text(
-                    '$value $suffix',
-                    textAlign: TextAlign.center,
-                    style: monoStyle(
-                      context,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
+          Material(
+            type: MaterialType.transparency,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: panelDecoration(context),
+              child: Row(
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: !hasValue || shownValue <= min
+                        ? null
+                        : () => onChanged(shownValue - 1),
+                    icon: const Icon(Icons.remove),
+                  ),
+                  Expanded(
+                    child: Text(
+                      hasValue ? '$shownValue $suffix' : 'Informe',
+                      textAlign: TextAlign.center,
+                      style: monoStyle(
+                        context,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ).copyWith(
+                        color: hasValue
+                            ? null
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: value >= max ? null : () => onChanged(value + 1),
-                  icon: const Icon(Icons.add),
-                ),
-              ],
+                  IconButton.filledTonal(
+                    onPressed: !hasValue
+                        ? () => onChanged(min)
+                        : shownValue >= max
+                        ? null
+                        : () => onChanged(shownValue + 1),
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
+              ),
             ),
           ),
+          if (errorText != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              errorText!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1273,22 +1342,25 @@ class ToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: panelDecoration(context),
-      child: Row(
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: panelDecoration(context),
+        child: Row(
+          children: [
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
-          ),
-          Switch(value: value, onChanged: onChanged),
-        ],
+            Switch(value: value, onChanged: onChanged),
+          ],
+        ),
       ),
     );
   }
@@ -1375,32 +1447,52 @@ class ChoiceField extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.errorText,
   });
 
   final String label;
-  final String value;
+  final String? value;
   final Map<String, String> options;
   final ValueChanged<String> onChanged;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 6),
-          SegmentedButton<String>(
-            segments: options.entries
-                .map(
-                  (entry) =>
-                      ButtonSegment(value: entry.key, label: Text(entry.value)),
-                )
-                .toList(),
-            selected: {value},
-            onSelectionChanged: (selection) => onChanged(selection.first),
+          const SizedBox(height: 8),
+          Material(
+            type: MaterialType.transparency,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: options.entries.map((entry) {
+                final selected = value == entry.key;
+                return FilterChip(
+                  label: Text(entry.value),
+                  selected: selected,
+                  showCheckmark: true,
+                  selectedColor: colorScheme.primaryContainer,
+                  checkmarkColor: colorScheme.onPrimaryContainer,
+                  onSelected: (_) => onChanged(entry.key),
+                );
+              }).toList(),
+            ),
           ),
+          if (errorText != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              errorText!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.error,
+              ),
+            ),
+          ],
         ],
       ),
     );

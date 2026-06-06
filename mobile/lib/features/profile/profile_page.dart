@@ -47,28 +47,31 @@ class _ProfilePageState extends State<ProfilePage> {
               body: widget.session.user?['email']?.toString() ?? '',
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: panelDecoration(context),
-              child: Row(
-                children: [
-                  const Icon(Icons.dark_mode_outlined),
-                  const SizedBox(width: 12),
-                  const Expanded(child: Text('Tema escuro')),
-                  ValueListenableBuilder<ThemeMode>(
-                    valueListenable: appThemeMode,
-                    builder: (context, mode, _) {
-                      return Switch(
-                        value: mode == ThemeMode.dark,
-                        onChanged: (enabled) {
-                          appThemeMode.value = enabled
-                              ? ThemeMode.dark
-                              : ThemeMode.light;
-                        },
-                      );
-                    },
-                  ),
-                ],
+            Material(
+              type: MaterialType.transparency,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: panelDecoration(context),
+                child: Row(
+                  children: [
+                    const Icon(Icons.dark_mode_outlined),
+                    const SizedBox(width: 12),
+                    const Expanded(child: Text('Tema escuro')),
+                    ValueListenableBuilder<ThemeMode>(
+                      valueListenable: appThemeMode,
+                      builder: (context, mode, _) {
+                        return Switch(
+                          value: mode == ThemeMode.dark,
+                          onChanged: (enabled) {
+                            appThemeMode.value = enabled
+                                ? ThemeMode.dark
+                                : ThemeMode.light;
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 12),
