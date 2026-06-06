@@ -2,9 +2,22 @@
 
 App de **saúde, bem-estar e hábitos** que classifica o perfil comportamental do usuário com Machine Learning, gera recomendações personalizadas, lembretes e gamificação.
 
-**PI · FATEC Franca · DSM 5º semestre · Aprendizagem de Máquina**
+**PI · FATEC Franca · DSM 5º semestre · Aprendizagem de Máquina · Grupo G08**
 
 > O Vitalis oferece sugestões de bem-estar e **não substitui orientação médica**.
+
+---
+
+## Links rápidos (produção)
+
+| Recurso | URL |
+|---------|-----|
+| **API** | http://4.229.233.225:3333 |
+| **Swagger UI** | http://4.229.233.225:3333/docs |
+| **OpenAPI JSON** | http://4.229.233.225:3333/docs.json |
+| **Health check** | http://4.229.233.225:3333/health/ready |
+
+No Swagger: faça login em `POST /auth/login`, copie o `accessToken` e clique em **Authorize** → `Bearer <token>`.
 
 ---
 
@@ -21,7 +34,7 @@ App de **saúde, bem-estar e hábitos** que classifica o perfil comportamental d
 | Camada | Stack |
 |--------|--------|
 | Mobile | Flutter (iOS + Android) |
-| API | Node.js, Express, Prisma, PostgreSQL |
+| API | Node.js, Express, Prisma, PostgreSQL, Swagger |
 | IA/ML | Python, scikit-learn, FastAPI |
 | Web | Next.js (landing + admin básico) |
 | Infra | Docker, VM Azure (produção do PI) |
@@ -32,13 +45,15 @@ App de **saúde, bem-estar e hábitos** que classifica o perfil comportamental d
 
 ```
 vitalis/
-├── api/              # REST API (porta 3333)
+├── api/              # REST API + Swagger (/docs)
 ├── mobile/           # App Flutter
 ├── ai/               # Treino + inferência ML
 ├── web/              # Landing Next.js
 ├── packages/shared/  # Tipos TypeScript compartilhados
 └── scripts/          # E2E, deploy VM
 ```
+
+Documentação da API: [api/README.md](api/README.md) · Mobile: [mobile/README.md](mobile/README.md)
 
 ---
 
@@ -56,15 +71,22 @@ Flutter (questionário)
 Recomendações · Lembretes · Gamificação
 ```
 
+**Produção (VM Azure `4.229.233.225`):**
+
+```
+Internet → :3333 → API Node (systemd)
+                    ├── :5432 → Postgres (Docker)
+                    └── :8000 → ML FastAPI (Docker)
+```
+
 ---
 
 ## Pré-requisitos
 
-- **Node.js** 20+
-- **pnpm** 10+
+- **Node.js** 20+ · **pnpm** 10+
 - **PostgreSQL** 16 (local ou Docker)
-- **Python** 3.12+ (módulo `ai/`)
-- **Flutter** 3.11+ (módulo `mobile/`)
+- **Python** 3.12+ (`ai/`)
+- **Flutter** 3.11+ (`mobile/`)
 
 ---
 
@@ -77,13 +99,12 @@ git clone https://github.com/FatecFranca/DSM-P5-G08-2026-01.git
 cd DSM-P5-G08-2026-01
 pnpm install
 cp .env.example .env
-# Edite .env com suas chaves (JWT, DATABASE_URL, etc.)
 ```
 
 ### 2. Banco de dados
 
 ```bash
-pnpm db:up          # Postgres via Docker
+pnpm db:up
 pnpm db:migrate
 pnpm db:seed
 ```
@@ -94,7 +115,7 @@ pnpm db:seed
 pnpm api:dev        # http://localhost:3333
 ```
 
-Swagger: [http://4.229.233.225:3333/docs](http://4.229.233.225:3333/docs) · OpenAPI: `/docs.json`
+Swagger local: http://localhost:3333/docs
 
 ### 4. Serviço ML
 
@@ -102,24 +123,23 @@ Swagger: [http://4.229.233.225:3333/docs](http://4.229.233.225:3333/docs) · Ope
 cd ai
 python -m venv .venv
 # Windows: .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 python src/train.py
 uvicorn src.serve:app --reload --port 8000
 ```
 
-Defina `ML_SERVICE_URL=http://localhost:8000` no `.env` da API.
+No `.env`: `ML_SERVICE_URL=http://localhost:8000`
 
 ### 5. Mobile
 
 ```bash
 cd mobile
 flutter pub get
-flutter run --dart-define=API_URL=http://10.0.2.2:3333   # emulador Android
-# flutter run --dart-define=API_URL=http://localhost:3333  # desktop / iOS sim
+flutter run                              # padrão: VM 4.229.233.225:3333
+flutter run --dart-define=API_URL=http://10.0.2.2:3333   # emulador + API local
 ```
 
-Detalhes do app: [mobile/README.md](mobile/README.md)
+Na tela de login: **Configurar URL da API** para alternar entre VM e local.
 
 ### 6. Web (opcional)
 
@@ -131,32 +151,28 @@ pnpm web:dev        # http://localhost:3000
 
 ## Variáveis de ambiente
 
-Copie `.env.example` para `.env`. Principais variáveis:
+Copie `.env.example` → `.env`.
 
 | Variável | Descrição |
 |----------|-----------|
-| `DATABASE_URL` | Conexão PostgreSQL |
+| `DATABASE_URL` | PostgreSQL |
 | `JWT_SECRET` | Chave JWT (mín. 32 caracteres) |
-| `ML_SERVICE_URL` | URL do serviço Python (`http://localhost:8000`) |
+| `ML_SERVICE_URL` | Serviço Python (`http://localhost:8000`) |
 | `GEMINI_API_KEY` | Google Gemini (opcional) |
 | `GEMINI_ENABLED` | `true` / `false` |
-| `CORS_ORIGINS` | Origens permitidas (`*` em dev) |
+| `CORS_ORIGINS` | Origens CORS (`*` em dev) |
+| `API_PUBLIC_URL` | URL no Swagger (padrão: VM do PI) |
+| `ADMIN_API_KEY` | Header `X-Admin-Key` para rotas admin |
 
 ---
 
-## Produção (VM Azure)
+## API — documentação Swagger
 
-Stack do PI hospedada na VM do grupo:
+Todas as rotas estão documentadas em **9 tags**:
 
-| Serviço | Endereço |
-|---------|----------|
-| API pública | `http://4.229.233.225:3333` |
-| Health check | `http://4.229.233.225:3333/health/ready` |
-| Swagger | `http://4.229.233.225:3333/docs` |
+`Health` · `Auth` · `Dashboard` · `Assessments` · `Clusters` · `Recommendations` · `Reminders` · `Gamification` · `Admin`
 
-O app Flutter já aponta para essa URL por padrão. Na tela de login use **Configurar URL da API** para alternar entre VM e ambiente local.
-
-Deploy/atualização na VM:
+Deploy na VM:
 
 ```bash
 bash scripts/deploy-vm.sh
@@ -173,40 +189,26 @@ bash scripts/deploy-vm.sh
 | `Sedentario` | Baixa atividade física |
 | `Em_Risco` | Combinação de fatores de atenção |
 
-Modelo: **Logistic Regression** (classificação) + **K-Means** (clusterização) · versão `ml-v1.0`
+Modelo: **Logistic Regression** + **K-Means** · versão `ml-v1.0`
 
 ---
 
 ## Scripts úteis
 
 ```bash
-pnpm api:dev          # API em desenvolvimento
-pnpm mobile:dev       # Flutter via monorepo
-pnpm db:migrate       # Migrations Prisma
-pnpm db:seed          # Dados iniciais
-pnpm build            # Build turbo (api + web + shared)
+pnpm api:dev          # API :3333
+pnpm mobile:dev       # Flutter
+pnpm db:migrate       # Prisma migrate
+pnpm db:seed          # Seed
+pnpm build            # Build monorepo
 ```
 
-Teste E2E local (PowerShell):
+Teste E2E (PowerShell):
 
 ```powershell
 .\scripts\test-e2e.ps1
+# VM: .\scripts\test-e2e.ps1 com base URL alterada, ou use vm-test-api.sh na VM
 ```
-
----
-
-## Endpoints principais
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/auth/register` | Cadastro |
-| POST | `/auth/login` | Login |
-| POST | `/assessments` | Enviar questionário + classificar |
-| GET | `/dashboard` | Dados do início |
-| GET | `/recommendations` | Recomendações ativas |
-| GET | `/reminders/today` | Lembretes do dia |
-| GET | `/gamification` | Pontos, nível, streak |
-| GET | `/health/ready` | Status DB + ML |
 
 ---
 
