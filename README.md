@@ -25,7 +25,7 @@ Documentação interativa da API — faça login em `POST /auth/login`, copie o 
 | Vitor Siqueira Simeao |
 | Uriel Monte Paz de Araujo |
 | Gabriel Aleixo |
-| Dimerson |
+| Dimerson Ferreira |
 
 ---
 
@@ -97,7 +97,7 @@ Internet → :3333 → API Node (systemd)
 ```bash
 git clone https://github.com/FatecFranca/DSM-P5-G08-2026-01.git
 cd DSM-P5-G08-2026-01
-pnpm install
+npm install -g pnpm
 cp .env.example .env
 ```
 
