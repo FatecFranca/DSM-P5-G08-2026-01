@@ -34,6 +34,27 @@ class ApiClient {
         ),
       );
 
+  Future<void> delete(String path, {bool retried = false}) async {
+    final response = await http.delete(_uri(path), headers: _headers());
+    if (response.statusCode == 401 &&
+        !retried &&
+        session.refreshToken != null) {
+      try {
+        await _refreshTokens();
+        return delete(path, retried: true);
+      } catch (_) {
+        await session.clear();
+      }
+    }
+    if (response.statusCode >= 400) {
+      final text = utf8.decode(response.bodyBytes);
+      final data = text.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(text) as Map<String, dynamic>;
+      throw ApiException.fromResponse(response.statusCode, data);
+    }
+  }
+
   Future<Map<String, dynamic>> _send(
     Future<http.Response> Function(Map<String, String> headers) request, {
     bool retried = false,

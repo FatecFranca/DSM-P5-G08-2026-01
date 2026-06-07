@@ -11,6 +11,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _tab = 0;
+  int _refreshSignal = 0;
 
   @override
   void initState() {
@@ -24,20 +25,24 @@ class _HomeShellState extends State<HomeShell> {
       await NotificationService.instance.syncReminders(
         (data['reminders'] as List?) ?? [],
       );
-    } catch (_) {
-      // Notificações locais são conveniência; a API é a fonte principal.
-    }
+    } catch (_) {}
+  }
+
+  void _refreshTabs() {
+    setState(() => _refreshSignal++);
+    _syncNotifications();
   }
 
   void _openAssessment() {
     final api = ApiClient(widget.session);
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => AssessmentPage(
+      vitalisRoute<void>(
+        AssessmentPage(
           api: api,
           onDone: () {
             Navigator.of(context).pop();
             setState(() => _tab = 0);
+            _refreshTabs();
           },
         ),
       ),
@@ -48,9 +53,13 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final api = ApiClient(widget.session);
     final pages = [
-      DashboardPage(api: api, onStartAssessment: _openAssessment),
-      RecommendationsPage(api: api),
-      RemindersPage(api: api),
+      DashboardPage(
+        api: api,
+        refreshSignal: _refreshSignal,
+        onStartAssessment: _openAssessment,
+      ),
+      RecommendationsPage(api: api, refreshSignal: _refreshSignal),
+      RemindersPage(api: api, refreshSignal: _refreshSignal),
       ProfilePage(session: widget.session, api: api),
     ];
 
@@ -70,7 +79,10 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-      body: pages[_tab],
+      body: IndexedStack(
+        index: _tab,
+        children: pages,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (value) => setState(() => _tab = value),

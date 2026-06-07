@@ -8,6 +8,7 @@ import { gamificationRepository } from "../repositories/gamification.repository"
 import { recommendationRepository } from "../repositories/recommendation.repository";
 import { reminderRepository } from "../repositories/reminder.repository";
 import { reminderCompletionRepository } from "../repositories/reminder-completion.repository";
+import { mealPlanRepository } from "../repositories/meal-plan.repository";
 import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../utils/app-error";
@@ -161,11 +162,51 @@ export const recommendationService = {
   async getMealPlan(userId: string) {
     const latest = await classificationRepository.findLatestForUser(userId);
     if (!latest) throw new AppError("Faca uma avaliacao primeiro", 404);
+
+    const cached = await mealPlanRepository.findLatestForUser(userId);
+    if (cached && cached.profile === latest.profile) {
+      return {
+        profile: latest.profile,
+        meals: cached.meals,
+        source: cached.source,
+        disclaimer:
+          "Sugestoes gerais de alimentacao. Nao substitui orientacao de nutricionista ou medico.",
+      };
+    }
+
     return {
       profile: latest.profile,
-      meals: MEAL_PLANS[latest.profile],
-      disclaimer: "Sugestoes gerais de alimentacao. Nao constitui prescricao nutricional.",
+      meals: MEAL_PLANS[latest.profile as HealthProfile],
+      source: "static",
+      disclaimer:
+        "Sugestoes gerais de alimentacao. Nao substitui orientacao de nutricionista ou medico.",
     };
+  },
+
+  async generateAndCacheMealPlan(
+    userId: string,
+    profile: HealthProfile,
+    profileScore: number,
+    caloriesIntake?: number,
+  ) {
+    const user = await userRepository.findById(userId);
+    let meals = await geminiService.generateMealPlan({
+      profile,
+      profileScore,
+      caloriesIntake,
+      userName: user?.name,
+    });
+    const source = meals ? "gemini" : "static";
+    if (!meals) meals = MEAL_PLANS[profile];
+
+    await mealPlanRepository.create({
+      userId,
+      profile,
+      meals: meals as unknown as Prisma.InputJsonValue,
+      source,
+    });
+
+    return { meals, source };
   },
 
   async getWeeklyRoutine(userId: string) {
@@ -296,6 +337,14 @@ export const assessmentService = {
 
     await recommendationService.assignForProfile(userId, classification.profile);
     await reminderService.assignDefaults(userId, classification.profile);
+    await recommendationService
+      .generateAndCacheMealPlan(
+        userId,
+        classification.profile,
+        classification.profileScore,
+        input.caloriesIntake,
+      )
+      .catch((error) => console.warn("[meal-plan] Falha ao gerar cardapio:", error));
     await gamificationService.awardAssessmentPoints(userId, isFirstAssessment);
     const newAchievements = await achievementService.checkAndUnlock(userId);
 

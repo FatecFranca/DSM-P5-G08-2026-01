@@ -11,6 +11,7 @@ import { assessmentsRouter } from "./routes/assessments.routes";
 import { recommendationsRouter } from "./routes/recommendations.routes";
 import { remindersRouter } from "./routes/reminders.routes";
 import { gamificationRouter } from "./routes/gamification.routes";
+import { foodLogRouter } from "./routes/food-log.routes";
 import {
   adminRouter,
   clustersRouter,
@@ -60,6 +61,7 @@ export function createApp() {
   app.use("/recommendations", recommendationsRouter);
   app.use("/reminders", remindersRouter);
   app.use("/gamification", gamificationRouter);
+  app.use("/food-log", foodLogRouter);
 
   app.use(errorHandler);
 

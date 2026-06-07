@@ -4,13 +4,12 @@ class SessionStore extends ChangeNotifier {
   SessionStore(this._prefs);
 
   final SharedPreferences _prefs;
-  String apiUrl = defaultApiUrl;
+  String get apiUrl => defaultApiUrl;
   String? accessToken;
   String? refreshToken;
   Map<String, dynamic>? user;
 
   Future<void> load() async {
-    apiUrl = _prefs.getString('apiUrl') ?? defaultApiUrl;
     accessToken = _prefs.getString('accessToken');
     refreshToken = _prefs.getString('refreshToken');
     final rawUser = _prefs.getString('user');
@@ -28,12 +27,6 @@ class SessionStore extends ChangeNotifier {
       await _prefs.setString('refreshToken', refreshToken!);
     }
     if (user != null) await _prefs.setString('user', jsonEncode(user));
-    notifyListeners();
-  }
-
-  Future<void> saveApiUrl(String value) async {
-    apiUrl = value.trim().replaceAll(RegExp(r'/+$'), '');
-    await _prefs.setString('apiUrl', apiUrl);
     notifyListeners();
   }
 

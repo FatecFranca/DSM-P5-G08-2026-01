@@ -2,11 +2,11 @@ part of '../main.dart';
 
 String profileLabel(String? profile) {
   return switch (profile) {
-    'Saudavel_Ativo' => 'Saudavel ativo',
-    'Moderado' => 'Moderado',
-    'Sedentario' => 'Sedentario',
-    'Em_Risco' => 'Em risco',
-    _ => 'Perfil em analise',
+    'Saudavel_Ativo' => 'Muito ativo',
+    'Moderado' => 'Equilibrado',
+    'Sedentario' => 'Pouco movimento',
+    'Em_Risco' => 'Precisa de atenção',
+    _ => 'Perfil em análise',
   };
 }
 
@@ -102,6 +102,19 @@ String mealLabel(String type) {
     'snack' => 'Lanche',
     _ => 'Refeicao',
   };
+}
+
+List<Map<String, String>> _mealItems(Map<String, dynamic> meal) {
+  final raw = meal['items'];
+  if (raw is! List) return const [];
+  return raw
+      .whereType<Map>()
+      .map((item) => {
+            'name': item['name']?.toString() ?? '',
+            'quantity': item['quantity']?.toString() ?? '',
+          })
+      .where((item) => item['name']!.isNotEmpty)
+      .toList();
 }
 
 IconData _mealIcon(String type) {
@@ -229,6 +242,9 @@ String friendlyErrorMessage(Object error, {bool? isRegister}) {
     if (isRegister == true && error.statusCode == 409) {
       return 'Este e-mail já está cadastrado. Entre com sua conta ou use outro e-mail.';
     }
+    if (isRegister == true && (error.statusCode ?? 500) >= 500) {
+      return 'Erro no servidor ao criar conta. Se o cadastro foi feito, tente entrar com seu e-mail.';
+    }
     if (error.statusCode == 400) {
       return error.message.replaceFirst('Dados invalidos: ', 'Verifique os campos:\n');
     }
@@ -239,7 +255,7 @@ String friendlyErrorMessage(Object error, {bool? isRegister}) {
       text.contains('connection') ||
       text.contains('failed host lookup') ||
       text.contains('network')) {
-    return 'Sem conexão com a API. Verifique a URL em Configurar URL da API e sua internet.';
+    return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.';
   }
   return error.toString();
 }
@@ -349,8 +365,95 @@ Future<void> _showResult(BuildContext context, Map<String, dynamic> result) asyn
   );
 }
 
+Route<T> vitalisRoute<T>(Widget page) {
+  return PageRouteBuilder<T>(
+    pageBuilder: (context, animation, secondaryAnimation) => page,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+void showReminderDetail(BuildContext context, Map<String, dynamic> item) {
+  final type = item['type']?.toString();
+  final message = item['message']?.toString().trim();
+
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(item['title']?.toString() ?? 'Lembrete'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (item['timeOfDay'] != null) ...[
+              Text(
+                'Horário',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(item['timeOfDay'].toString()),
+              const SizedBox(height: 12),
+            ],
+            if (type != null) ...[
+              Text(
+                'Tipo',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(reminderTypeLabel(type)),
+              const SizedBox(height: 12),
+            ],
+            if (message != null && message.isNotEmpty) ...[
+              Text(
+                'Descrição',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(message),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fechar'),
+        ),
+      ],
+    ),
+  );
+}
+
+String reminderTypeLabel(String? type) {
+  return switch (type) {
+    'WATER' => 'Água',
+    'MEAL' => 'Refeição',
+    'SLEEP' => 'Sono',
+    'EXERCISE' => 'Exercício',
+    _ => 'Lembrete',
+  };
+}
+
 void _showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(context).showSnackBar(
+  if (!context.mounted) return;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
+  messenger.showSnackBar(
     SnackBar(
       behavior: SnackBarBehavior.floating,
       showCloseIcon: true,

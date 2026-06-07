@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import { signAccessToken } from "../lib/jwt";
 import { userRepository } from "../repositories/user.repository";
 import { refreshTokenRepository } from "../repositories/refresh-token.repository";
-import { gamificationRepository } from "../repositories/gamification.repository";
 import { AppError } from "../utils/app-error";
 
 async function issueTokens(user: { id: string; email: string; role?: string }) {
@@ -26,15 +25,6 @@ export const authService = {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await userRepository.create({ name, email, passwordHash });
-    await gamificationRepository.create({
-      userId: user.id,
-      points: 0,
-      level: 1,
-      currentStreak: 0,
-      longestStreak: 0,
-      badges: [],
-      lastActiveAt: new Date(),
-    });
     const tokens = await issueTokens(user);
 
     return { user, ...tokens, token: tokens.accessToken };

@@ -66,6 +66,8 @@ model User {
   refreshTokens     RefreshToken[]
   reminderCompletions ReminderCompletion[]
   userAchievements  UserAchievement[]
+  foodLogs          FoodLogEntry[]
+  mealPlanCaches    MealPlanCache[]
 
   @@map("users")
 }
@@ -243,4 +245,33 @@ model ClusterDefinition {
   description String
 
   @@map("cluster_definitions")
+}
+
+model FoodLogEntry {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  description String
+  entryType   String   @default("food") @map("entry_type")
+  mealPeriod  String?  @map("meal_period")
+  loggedOn    String   @map("logged_on")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedOn])
+  @@map("food_log_entries")
+}
+
+model MealPlanCache {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  profile   HealthProfile
+  meals     Json
+  source    String        @default("gemini")
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("meal_plan_caches")
 }

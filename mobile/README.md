@@ -18,26 +18,13 @@ pnpm mobile:dev
 
 ## URL da API
 
-O app usa por padrão a **VM de produção do PI**:
+Fixa no app (VM de produção do PI):
 
 ```text
 http://4.229.233.225:3333
 ```
 
-Na tela de login, toque em **Configurar URL da API** para alterar.
-
-| Ambiente | URL |
-|----------|-----|
-| VM produção (padrão) | `http://4.229.233.225:3333` |
-| Windows/macOS/Linux local | `http://localhost:3333` |
-| Emulador Android | `http://10.0.2.2:3333` |
-| Aparelho físico + API local | `http://IP_DA_MAQUINA:3333` |
-
-Também via build:
-
-```bash
-flutter run --dart-define=API_URL=http://10.0.2.2:3333
-```
+O usuário final **não configura** a URL — ela está embutida no código.
 
 ## Fluxos implementados
 

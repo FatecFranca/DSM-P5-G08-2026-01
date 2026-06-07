@@ -10,6 +10,8 @@ class RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<RootScreen> {
+  bool _showWelcome = true;
+
   @override
   void initState() {
     super.initState();
@@ -22,11 +24,20 @@ class _RootScreenState extends State<RootScreen> {
     super.dispose();
   }
 
-  void _refresh() => setState(() {});
+  void _refresh() {
+    if (widget.session.accessToken == null) {
+      setState(() => _showWelcome = true);
+    } else {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     if (widget.session.accessToken == null) {
+      if (_showWelcome) {
+        return WelcomeScreen(onFinished: () => setState(() => _showWelcome = false));
+      }
       return AuthScreen(session: widget.session);
     }
     return HomeShell(session: widget.session);

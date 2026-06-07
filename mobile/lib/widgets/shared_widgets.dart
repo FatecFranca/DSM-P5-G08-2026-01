@@ -179,15 +179,15 @@ class MlStatusPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      available ? 'IA conectada' : 'Classificacao por regras',
+                      available ? 'IA conectada' : 'Modo básico ativo',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     Text(
                       available
-                          ? 'As avaliacoes usam o modelo de Machine Learning.'
-                          : 'A API esta online, mas a IA nao respondeu agora.',
+                          ? 'Suas avaliações usam inteligência artificial.'
+                          : 'Tudo funciona, mas a IA está indisponível agora.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -240,7 +240,7 @@ class AiExplanationPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Explicacao da IA',
+                      'Explicação personalizada',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -502,15 +502,17 @@ class RecommendationCard extends StatelessWidget {
 }
 
 class ReminderCard extends StatelessWidget {
-  const ReminderCard({super.key, required this.item, this.action});
+  const ReminderCard({super.key, required this.item, this.action, this.onTap});
 
   final Map<String, dynamic> item;
   final Widget? action;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
+        onTap: onTap,
         leading: Icon(_reminderIcon(item['type']?.toString())),
         title: Text(item['title']?.toString() ?? 'Lembrete'),
         subtitle: Text(
@@ -652,6 +654,30 @@ class _MealCardState extends State<MealCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (_mealItems(meal).isNotEmpty) ...[
+                        Text(
+                          'Alimentos',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 6),
+                        ..._mealItems(meal).map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('• '),
+                                Expanded(
+                                  child: Text(
+                                    '${entry['name']} — ${entry['quantity']}',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       Text(meal['description']?.toString() ?? ''),
                       if (meal['tip'] != null) ...[
                         const SizedBox(height: 10),

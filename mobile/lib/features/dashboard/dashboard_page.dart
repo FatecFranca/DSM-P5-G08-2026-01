@@ -5,10 +5,12 @@ class DashboardPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.onStartAssessment,
+    this.refreshSignal = 0,
   });
 
   final ApiClient api;
   final VoidCallback onStartAssessment;
+  final int refreshSignal;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -16,6 +18,19 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late Future<Map<String, dynamic>> _future = _load();
+
+  void _reload() {
+    final next = _load();
+    setState(() => _future = next);
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshSignal != widget.refreshSignal) {
+      _reload();
+    }
+  }
 
   Future<Map<String, dynamic>> _load() async {
     final dashboard = await widget.api.get('/dashboard');
@@ -49,7 +64,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     return DataScaffold(
       future: _future,
-      onRefresh: () => setState(() => _future = _load()),
+      onRefresh: _reload,
       builder: (data) {
         final dashboard = data['dashboard'] as Map<String, dynamic>;
         final summary = dashboard['summary'] as Map<String, dynamic>?;
@@ -72,7 +87,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 icon: Icons.assignment_add,
                 title: 'Faça sua primeira avaliação',
                 body:
-                    'Preencha o questionário para gerar perfil, recomendações e lembretes.',
+                    'Responda o questionário para descobrir seu perfil e receber dicas personalizadas.',
                 actionLabel: 'Começar avaliação',
                 onAction: widget.onStartAssessment,
               )
@@ -112,11 +127,13 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const SizedBox(height: 16),
             SectionTitle('Lembretes de hoje', trailing: '${reminders.length}'),
-            ...reminders
-                .take(4)
-                .map(
-                  (item) => ReminderCard(item: item as Map<String, dynamic>),
-                ),
+            ...reminders.take(4).map((item) {
+              final reminder = item as Map<String, dynamic>;
+              return ReminderCard(
+                item: reminder,
+                onTap: () => showReminderDetail(context, reminder),
+              );
+            }),
             if (reminders.isEmpty)
               const EmptyState(text: 'Nenhum lembrete ativo para hoje.'),
             const SizedBox(height: 16),

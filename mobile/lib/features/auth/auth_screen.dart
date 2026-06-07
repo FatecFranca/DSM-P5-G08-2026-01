@@ -14,19 +14,15 @@ class _AuthScreenState extends State<AuthScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  late final TextEditingController _apiUrl =
-      TextEditingController(text: widget.session.apiUrl);
   bool _register = false;
   bool _loading = false;
   bool _obscurePassword = true;
-  bool _showAdvanced = false;
 
   @override
   void dispose() {
     _name.dispose();
     _email.dispose();
     _password.dispose();
-    _apiUrl.dispose();
     super.dispose();
   }
 
@@ -34,7 +30,6 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!_form.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await widget.session.saveApiUrl(_apiUrl.text.trim());
       final api = ApiClient(widget.session);
       final payload = {
         if (_register) 'name': _name.text.trim(),
@@ -47,6 +42,19 @@ class _AuthScreenState extends State<AuthScreen> {
       );
       await widget.session.saveAuth(data);
     } catch (error) {
+      if (_register &&
+          error is ApiException &&
+          (error.statusCode ?? 500) >= 500) {
+        try {
+          final api = ApiClient(widget.session);
+          final loginData = await api.post('/auth/login', {
+            'email': _email.text.trim(),
+            'password': _password.text,
+          });
+          await widget.session.saveAuth(loginData);
+          return;
+        } catch (_) {}
+      }
       if (!mounted) return;
       _showError(
         context,
@@ -59,10 +67,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _register ? 'Crie sua conta' : 'Bem-vindo de volta';
+    final title = _register ? 'Crie sua conta' : 'Que bom te ver de novo';
     final subtitle = _register
-        ? 'Comece preenchendo seus dados de acesso.'
-        : 'Entre para acompanhar seu perfil e sua rotina.';
+        ? 'Preencha seus dados para começar.'
+        : 'Entre para ver seu plano e lembretes.';
 
     return Scaffold(
       body: SafeArea(
@@ -102,7 +110,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Cuidado diário guiado pelo seu perfil de saúde.',
+                      'Hábitos saudáveis, passo a passo.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: Theme.of(context)
@@ -201,48 +209,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               ? 'Mínimo de 6 caracteres'
                               : null,
                     ),
-                    const SizedBox(height: 12),
-                    TextButton.icon(
-                      onPressed: () =>
-                          setState(() => _showAdvanced = !_showAdvanced),
-                      icon: Icon(
-                        _showAdvanced
-                            ? Icons.expand_less
-                            : Icons.settings_outlined,
-                      ),
-                      label: Text(
-                        _showAdvanced
-                            ? 'Ocultar URL da API'
-                            : 'Configurar URL da API',
-                      ),
-                    ),
-                    if (_showAdvanced) ...[
-                      TextFormField(
-                        controller: _apiUrl,
-                        decoration: InputDecoration(
-                          labelText: 'URL da API',
-                          hintText: defaultApiUrl,
-                          prefixIcon: const Icon(Icons.link),
-                          helperText:
-                              'VM: $defaultApiUrl · Local: $localApiUrl · Emulador: $androidEmulatorApiUrl',
-                        ),
-                        keyboardType: TextInputType.url,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Informe a URL da API';
-                          }
-                          final uri = Uri.tryParse(value.trim());
-                          if (uri == null ||
-                              !uri.hasScheme ||
-                              uri.host.isEmpty) {
-                            return 'URL inválida';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
                     SizedBox(
                       height: 52,
                       child: FilledButton.icon(
@@ -273,7 +240,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 8),
                     const DisclaimerBox(
                       text:
-                          'O Vitalis oferece sugestões de bem-estar e não substitui orientação médica.',
+                          'O Vitalis dá dicas de bem-estar e não substitui consulta médica.',
                     ),
                   ],
                 ),

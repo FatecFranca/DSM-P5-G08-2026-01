@@ -68,3 +68,13 @@ export const reminderUpdateSchema = reminderSchema.partial();
 export const toggleRecommendationSchema = z.object({
   isActive: z.boolean(),
 });
+
+export const foodLogSchema = z.object({
+  description: z.string().min(2).max(500),
+  entryType: z.enum(["food", "drink"]).default("food"),
+  mealPeriod: z.enum(["breakfast", "lunch", "dinner", "snack"]).optional(),
+  loggedOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+});
