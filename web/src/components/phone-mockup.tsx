@@ -7,7 +7,7 @@ interface PhoneMockupProps {
 
 export function PhoneMockup({ screen = "home", className = "" }: PhoneMockupProps) {
   return (
-    <div className={phone ${className}.trim()} aria-hidden="true">
+    <div className={`phone ${className}`.trim()} aria-hidden="true">
       <div className="phone-bezel">
         <div className="phone-notch" />
         <div className="phone-screen">
