@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://4.229.233.225:3333";
 
 type Stats = {
   apiStatus: string;
