@@ -56,9 +56,14 @@ export const compareSchema = z.object({
 
 export const reminderSchema = z.object({
   type: z.enum(["WATER", "MEAL", "SLEEP", "EXERCISE"]),
-  title: z.string().min(2).max(100),
-  message: z.string().max(255).optional(),
-  timeOfDay: z.string().regex(/^\d{2}:\d{2}$/),
+  title: z.string().trim().min(2).max(100),
+  message: z
+    .string()
+    .trim()
+    .max(255)
+    .nullish()
+    .transform((value) => (value ? value : undefined)),
+  timeOfDay: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use o formato HH:MM"),
   frequency: z.enum(["DAILY", "WEEKLY"]).default("DAILY"),
   isActive: z.boolean().default(true),
 });

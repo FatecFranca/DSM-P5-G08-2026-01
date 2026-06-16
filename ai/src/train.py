@@ -35,12 +35,23 @@ def main() -> None:
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    classifier = LogisticRegression(max_iter=1000, random_state=42)
+    # class_weight="balanced" corrige o desbalanceamento do dataset
+    # (a classe "Moderado" domina e fazia o modelo ignorar "Sedentario").
+    classifier = LogisticRegression(
+        max_iter=2000,
+        random_state=42,
+        class_weight="balanced",
+        solver="lbfgs",
+    )
     classifier.fit(X_train, y_train)
     y_pred = classifier.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
-    report = classification_report(y_test, y_pred, output_dict=True)
+    report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
     print(f"Acuracia classificador: {acc:.2%}")
+    print(classification_report(y_test, y_pred, zero_division=0))
+
+    class_counts = y.value_counts().sort_index().to_dict()
+    print(f"Distribuicao de classes (treino+teste): {class_counts}")
 
     kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
     kmeans.fit(X)
@@ -64,6 +75,8 @@ def main() -> None:
         "silhouetteScore": round(silhouette, 4),
         "trainSamples": len(X_train),
         "testSamples": len(X_test),
+        "classDistribution": {str(k): int(v) for k, v in class_counts.items()},
+        "classWeight": "balanced",
         "classificationReport": report,
         "rawBounds": {k: list(v) for k, v in raw_bounds.items()},
     }

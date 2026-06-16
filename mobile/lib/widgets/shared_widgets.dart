@@ -103,7 +103,7 @@ class ProfileSummary extends StatelessWidget {
                     avatar: const Icon(Icons.groups, size: 18),
                     label: Text(
                       summary['clusterLabel']?.toString() ??
-                          'Cluster em analise',
+                          'Cluster em análise',
                     ),
                   ),
                   if (modelVersion != null && !fromMl)
@@ -329,7 +329,7 @@ class ClusterStatsPanel extends StatelessWidget {
             suffix: 'h',
           ),
           ComparisonRow(
-            label: 'Exercicio',
+            label: 'Exercício',
             item: comparison['exerciseHoursPerWeek'],
             suffix: 'h/sem',
           ),
@@ -361,28 +361,34 @@ class ComparisonRow extends StatelessWidget {
     final avg = data['clusterAvg'];
     if (yours == null || avg == null) return const SizedBox.shrink();
 
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            flex: 2,
-            child: Text(label, overflow: TextOverflow.ellipsis),
-          ),
-          Flexible(
             child: Text(
-              'Voce: ${formatMetric(yours)}$suffix',
+              label,
               overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              'Grupo: ${formatMetric(avg)}$suffix',
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-            ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Você: ${formatMetric(yours)}$suffix',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'Grupo: ${formatMetric(avg)}$suffix',
+                style: TextStyle(fontSize: 12, color: muted),
+              ),
+            ],
           ),
         ],
       ),
@@ -490,7 +496,7 @@ class RecommendationCard extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.check_circle_outline),
-        title: Text(template['title']?.toString() ?? 'Recomendacao'),
+        title: Text(template['title']?.toString() ?? 'Recomendação'),
         subtitle: Text(
           template['description']?.toString() ??
               template['category']?.toString() ??
@@ -632,7 +638,7 @@ class _MealCardState extends State<MealCard> {
                                 ),
                           ),
                           Text(
-                            meal['title']?.toString() ?? 'Refeicao',
+                            meal['title']?.toString() ?? 'Refeição',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
@@ -765,32 +771,17 @@ class _WeeklyRoutinePanelState extends State<WeeklyRoutinePanel> {
                       color: Theme.of(context).colorScheme.outlineVariant,
                     ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        label.substring(
-                          0,
-                          label.length >= 3 ? 3 : label.length,
-                        ),
-                        style: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        '${index + 10}',
-                        style: monoStyle(
-                          context,
-                          fontWeight: FontWeight.w800,
-                          color: selected
-                              ? Colors.white
-                              : Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    label.substring(
+                      0,
+                      label.length >= 3 ? 3 : label.length,
+                    ),
+                    style: TextStyle(
+                      color: selected
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               );

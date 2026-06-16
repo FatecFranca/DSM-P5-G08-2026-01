@@ -94,69 +94,97 @@ class _RemindersPageState extends State<RemindersPage> {
     final time = TextEditingController(text: reminder?['timeOfDay']?.toString() ?? '09:00');
     var type = reminder?['type']?.toString() ?? 'WATER';
     final messenger = ScaffoldMessenger.of(context);
+    final timeRegex = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
 
     final saved = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: Text(reminder == null ? 'Novo lembrete' : 'Editar lembrete'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: title,
-                  decoration: const InputDecoration(labelText: 'Título'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: message,
-                  decoration: const InputDecoration(labelText: 'Mensagem (opcional)'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: time,
-                  decoration: const InputDecoration(
-                    labelText: 'Horário (HH:MM)',
-                    hintText: '09:00',
+      builder: (dialogContext) {
+        String? titleError;
+        String? timeError;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: Text(reminder == null ? 'Novo lembrete' : 'Editar lembrete'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: title,
+                    decoration: InputDecoration(
+                      labelText: 'Título',
+                      errorText: titleError,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Tipo',
-                    style: Theme.of(dialogContext).textTheme.labelLarge,
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: message,
+                    decoration: const InputDecoration(
+                      labelText: 'Mensagem (opcional)',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                DropdownButton<String>(
-                  value: type,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'WATER', child: Text('Água')),
-                    DropdownMenuItem(value: 'MEAL', child: Text('Refeição')),
-                    DropdownMenuItem(value: 'SLEEP', child: Text('Sono')),
-                    DropdownMenuItem(value: 'EXERCISE', child: Text('Exercício')),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => type = value ?? 'WATER'),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: time,
+                    keyboardType: TextInputType.datetime,
+                    decoration: InputDecoration(
+                      labelText: 'Horário (HH:MM)',
+                      hintText: '09:00',
+                      errorText: timeError,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Tipo',
+                      style: Theme.of(dialogContext).textTheme.labelLarge,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButton<String>(
+                    value: type,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(value: 'WATER', child: Text('Água')),
+                      DropdownMenuItem(value: 'MEAL', child: Text('Refeição')),
+                      DropdownMenuItem(value: 'SLEEP', child: Text('Sono')),
+                      DropdownMenuItem(
+                        value: 'EXERCISE',
+                        child: Text('Exercício'),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => type = value ?? 'WATER'),
+                  ),
+                ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final titleValid = title.text.trim().length >= 2;
+                  final timeValid = timeRegex.hasMatch(time.text.trim());
+                  if (titleValid && timeValid) {
+                    Navigator.pop(dialogContext, true);
+                    return;
+                  }
+                  setDialogState(() {
+                    titleError = titleValid
+                        ? null
+                        : 'Informe um título com 2+ letras';
+                    timeError = timeValid ? null : 'Use o formato HH:MM';
+                  });
+                },
+                child: const Text('Salvar'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Salvar'),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
 
     if (saved != true || !mounted) {
@@ -167,10 +195,11 @@ class _RemindersPageState extends State<RemindersPage> {
     }
 
     try {
+      final trimmedMessage = message.text.trim();
       final body = {
         'type': type,
         'title': title.text.trim(),
-        'message': message.text.trim().isEmpty ? null : message.text.trim(),
+        if (trimmedMessage.isNotEmpty) 'message': trimmedMessage,
         'timeOfDay': time.text.trim(),
       };
       if (reminder == null) {

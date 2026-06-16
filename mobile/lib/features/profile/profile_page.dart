@@ -1,10 +1,16 @@
 part of '../../main.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key, required this.session, required this.api});
+  const ProfilePage({
+    super.key,
+    required this.session,
+    required this.api,
+    this.refreshSignal = 0,
+  });
 
   final SessionStore session;
   final ApiClient api;
+  final int refreshSignal;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -12,6 +18,19 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<Map<String, dynamic>> _future = _load();
+
+  void _reload() {
+    final next = _load();
+    setState(() => _future = next);
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshSignal != widget.refreshSignal) {
+      _reload();
+    }
+  }
 
   Future<Map<String, dynamic>> _load() async {
     final results = await Future.wait([
@@ -27,7 +46,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return DataScaffold(
       future: _future,
-      onRefresh: () => setState(() => _future = _load()),
+      onRefresh: _reload,
       builder: (data) {
         final game = data['game'] as Map<String, dynamic>;
         final gamification =
@@ -87,7 +106,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: MetricTile(
-                    label: 'Sequencia',
+                    label: 'Sequência',
                     value: '${gamification['currentStreak'] ?? 0}',
                     icon: Icons.local_fire_department,
                   ),
@@ -99,7 +118,7 @@ class _ProfilePageState extends State<ProfilePage> {
             if (achievements.isEmpty)
               const EmptyState(
                 text:
-                    'Conclua avaliacoes e lembretes para desbloquear conquistas.',
+                    'Conclua avaliações e lembretes para desbloquear conquistas.',
               ),
             ...achievements.map((item) {
               final achievement = item as Map<String, dynamic>;

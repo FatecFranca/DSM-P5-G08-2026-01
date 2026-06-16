@@ -60,7 +60,11 @@ class _HomeShellState extends State<HomeShell> {
       ),
       RecommendationsPage(api: api, refreshSignal: _refreshSignal),
       RemindersPage(api: api, refreshSignal: _refreshSignal),
-      ProfilePage(session: widget.session, api: api),
+      ProfilePage(
+        session: widget.session,
+        api: api,
+        refreshSignal: _refreshSignal,
+      ),
     ];
 
     return Scaffold(
@@ -85,7 +89,10 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (value) => setState(() => _tab = value),
+        onDestinationSelected: (value) {
+          setState(() => _tab = value);
+          if (value == 0 || value == 3) _refreshTabs();
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),

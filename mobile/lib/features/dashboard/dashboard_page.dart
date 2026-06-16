@@ -118,7 +118,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: MetricTile(
-                    label: 'Nivel',
+                    label: 'Nível',
                     value: '${gamification?['level'] ?? 1}',
                     icon: Icons.trending_up,
                   ),
@@ -138,7 +138,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const EmptyState(text: 'Nenhum lembrete ativo para hoje.'),
             const SizedBox(height: 16),
             SectionTitle(
-              'Recomendacoes ativas',
+              'Recomendações ativas',
               trailing: '${recommendations.length}',
             ),
             ...recommendations
@@ -149,7 +149,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
             if (recommendations.isEmpty)
               const EmptyState(
-                text: 'As recomendacoes aparecem depois da avaliacao.',
+                text: 'As recomendações aparecem depois da avaliação.',
               ),
           ],
         );

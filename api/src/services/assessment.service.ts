@@ -68,11 +68,21 @@ export const gamificationService = {
     const today = new Date();
     let currentStreak = profile.currentStreak;
 
+    const startOfDay = (date: Date) =>
+      new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
     if (profile.lastActiveAt) {
-      const diffDays = Math.floor(
-        (today.getTime() - profile.lastActiveAt.getTime()) / (1000 * 60 * 60 * 24),
+      const diffDays = Math.round(
+        (startOfDay(today) - startOfDay(profile.lastActiveAt)) / (1000 * 60 * 60 * 24),
       );
-      currentStreak = diffDays <= 1 ? currentStreak + 1 : 1;
+      if (diffDays === 0) {
+        // Ja ativo hoje: mantem a sequencia (evita inflar com varios lembretes)
+        currentStreak = Math.max(currentStreak, 1);
+      } else if (diffDays === 1) {
+        currentStreak += 1;
+      } else {
+        currentStreak = 1;
+      }
     } else {
       currentStreak = 1;
     }

@@ -100,7 +100,7 @@ String mealLabel(String type) {
     'lunch' => 'Almoco',
     'dinner' => 'Jantar',
     'snack' => 'Lanche',
-    _ => 'Refeicao',
+    _ => 'Refeição',
   };
 }
 
@@ -191,7 +191,7 @@ String _fallbackMessage(int statusCode) {
   return switch (statusCode) {
     400 => 'Dados invalidos',
     401 => 'E-mail ou senha incorretos',
-    403 => 'Voce nao tem permissao para esta acao',
+    403 => 'Você não tem permissão para esta ação',
     404 => 'Registro nao encontrado',
     409 => 'Ja existe um cadastro com esses dados',
     500 => 'Erro interno do servidor',
@@ -343,11 +343,11 @@ Future<void> _showResult(BuildContext context, Map<String, dynamic> result) asyn
             ),
             const SizedBox(height: 8),
             Chip(
-              label: Text('Cluster: ${plan?['clusterLabel'] ?? 'em analise'}'),
+              label: Text('Cluster: ${plan?['clusterLabel'] ?? 'em análise'}'),
             ),
             if (modelVersion != null) Text(modelLabel(modelVersion)),
             if (confidence != null)
-              Text('Confianca: ${(confidence.toDouble() * 100).round()}%'),
+              Text('Confiança: ${(confidence.toDouble() * 100).round()}%'),
             if (messages.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(messages.first),

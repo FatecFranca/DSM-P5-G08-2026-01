@@ -20,6 +20,17 @@ export interface ExplanationPayload {
   modelVersion?: string;
 }
 
+const VALID_PROFILES: readonly HealthProfile[] = [
+  "Em_Risco",
+  "Sedentario",
+  "Moderado",
+  "Saudavel_Ativo",
+];
+
+function isValidProfile(value: unknown): value is HealthProfile {
+  return typeof value === "string" && VALID_PROFILES.includes(value as HealthProfile);
+}
+
 interface RuleInput {
   bmi: number;
   dailySteps: number;
@@ -218,31 +229,7 @@ export const classificationService = {
     const bmi = calculateBmi(input.heightCm, input.weightKg);
     const mlResult = await callMlService(input, bmi);
 
-    if (mlResult) {
-      const fallback = classifyByRules({
-        bmi,
-        dailySteps: input.dailySteps,
-        hoursOfSleep: input.hoursOfSleep,
-        exerciseHoursPerWeek: input.exerciseHoursPerWeek,
-        smoker: input.smoker,
-        diabetic: input.diabetic,
-        heartDisease: input.heartDisease,
-        alcoholPerWeek: input.alcoholPerWeek,
-      });
-
-      return {
-        ...mlResult,
-        explanation: mlResult.explanation ?? fallback.explanation.messages,
-        modelVersion: mlResult.modelVersion ?? "ml-v1.0",
-        explanationPayload: {
-          ...fallback.explanation,
-          modelVersion: mlResult.modelVersion ?? "ml-v1.0",
-        },
-        confidence: mlResult.confidence ?? 0.85,
-      };
-    }
-
-    const { profile, explanation } = classifyByRules({
+    const fallback = classifyByRules({
       bmi,
       dailySteps: input.dailySteps,
       hoursOfSleep: input.hoursOfSleep,
@@ -252,16 +239,48 @@ export const classificationService = {
       heartDisease: input.heartDisease,
       alcoholPerWeek: input.alcoholPerWeek,
     });
-
     const cluster = assignCluster({ ...input, bmi });
 
+    // Usa ML somente se retornou um perfil dentro das classes treinadas
+    // e com confianca aceitavel; caso contrario, cai no motor de regras.
+    const mlConfidence = mlResult?.confidence ?? 0;
+    const mlUsable =
+      mlResult != null && isValidProfile(mlResult.profile) && mlConfidence >= 0.4;
+
+    if (mlResult && !mlUsable) {
+      console.warn(
+        `[ml] Resultado descartado (profile="${mlResult.profile}", confidence=${mlConfidence}). Usando rules-v1.`,
+      );
+    }
+
+    if (mlResult && mlUsable) {
+      const profile = mlResult.profile as HealthProfile;
+      return {
+        profile,
+        // Score e cluster derivados de regras deterministicas para garantir
+        // consistencia: o cluster do K-Means tem IDs arbitrarios que nao
+        // correspondem aos rotulos semanticos (ex.: pessoa saudavel caia em
+        // "Grupo Sedentario").
+        profileScore: PROFILE_SCORES[profile],
+        clusterId: cluster.clusterId,
+        clusterLabel: cluster.clusterLabel,
+        explanation: fallback.explanation.messages,
+        explanationPayload: {
+          ...fallback.explanation,
+          modelVersion: mlResult.modelVersion ?? "ml-v1.0",
+        },
+        modelVersion: mlResult.modelVersion ?? "ml-v1.0",
+        confidence: mlConfidence > 0 ? mlConfidence : 0.85,
+      };
+    }
+
     return {
-      profile,
-      profileScore: PROFILE_SCORES[profile],
+      profile: fallback.profile,
+      profileScore: PROFILE_SCORES[fallback.profile],
       clusterId: cluster.clusterId,
       clusterLabel: cluster.clusterLabel,
-      explanation: explanation.messages,
-      explanationPayload: explanation,
+      explanation: fallback.explanation.messages,
+      explanationPayload: fallback.explanation,
       modelVersion: "rules-v1",
       confidence: 0.75,
     };
